@@ -1,0 +1,1 @@
+python3 /root/autopost-tiny/create_videos_post.py
