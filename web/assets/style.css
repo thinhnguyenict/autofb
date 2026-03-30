@@ -1,0 +1,57 @@
+/* ── AutoFB Dashboard – Custom styles ──────────────────────────────────────── */
+
+/* Body */
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+}
+
+/* Section titles */
+.section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #333;
+    border-left: 4px solid var(--bs-primary);
+    padding-left: 0.6rem;
+}
+
+/* Process cards */
+.process-card {
+    border: none;
+    border-radius: 0.75rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.process-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,.1) !important;
+}
+
+/* Status badge colours */
+.status-badge.running  { background-color: #198754 !important; }
+.status-badge.stopped  { background-color: #6c757d !important; }
+
+/* Log viewer */
+.log-box {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    max-height: 480px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Login page background */
+body.bg-dark {
+    background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%) !important;
+}
+
+/* Table token cells – make them monospace */
+#pagesTable td:last-child input,
+#pagesTable td:nth-child(3) input {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+}
