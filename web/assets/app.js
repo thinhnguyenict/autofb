@@ -190,6 +190,51 @@ async function saveConfig() {
     }
 }
 
+async function renewTokens() {
+    const appId = document.getElementById('renewAppId').value.trim();
+    const appSecret = document.getElementById('renewAppSecret').value.trim();
+    const shortToken = document.getElementById('renewShortToken').value.trim();
+
+    if (!appId || !appSecret || !shortToken) {
+        showToast('Vui lòng nhập đủ App ID, App Secret và short token', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnRenewTokens');
+    btn.disabled = true;
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Renewing...';
+
+    try {
+        const res = await fetch(`${API}?action=renew_tokens`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                app_id: appId,
+                app_secret: appSecret,
+                short_token: shortToken,
+            }),
+        });
+        if (res.status === 401) { window.location.href = 'login.php'; return; }
+        const data = await res.json();
+        if (data.status === 'renewed') {
+            let msg = `✅ Renew thành công ${data.renewed_count}/${data.total_config_pages} token`;
+            if (Array.isArray(data.missing_page_ids) && data.missing_page_ids.length > 0) {
+                msg += `. Thiếu page_id: ${data.missing_page_ids.join(', ')}`;
+            }
+            showToast(msg, data.missing_page_ids?.length ? 'warning' : 'success');
+            await loadConfig();
+        } else {
+            showToast('❌ Renew thất bại: ' + (data.error ?? 'Unknown'), 'danger');
+        }
+    } catch (err) {
+        showToast('❌ Renew thất bại: ' + err.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
 // ── Log viewer ────────────────────────────────────────────────────────────────
 async function loadLog(script) {
     const data = await apiCall(`log&script=${encodeURIComponent(script)}`);
@@ -224,6 +269,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Add page row
+    document.getElementById('btnToggleRenew').addEventListener('click', () => {
+        document.getElementById('renewCard').classList.toggle('d-none');
+    });
+
+    document.getElementById('btnRenewTokens').addEventListener('click', renewTokens);
+
     document.getElementById('btnAddPage').addEventListener('click', () => {
         const count = document.querySelectorAll('#pagesBody tr').length;
         addPageRow(count + 1);
