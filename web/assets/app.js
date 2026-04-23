@@ -116,11 +116,16 @@ async function loadConfig() {
 }
 
 function formatEpoch(epochSeconds) {
-    const epoch = Number(epochSeconds || 0);
-    if (!epoch) return '';
+    const epoch = Number(epochSeconds ?? 0);
+    if (!epoch) return 'N/A';
     const dt = new Date(epoch * 1000);
-    if (Number.isNaN(dt.getTime())) return '';
+    if (Number.isNaN(dt.getTime())) return 'N/A';
     return dt.toLocaleString('vi-VN');
+}
+
+function toNumberOrZero(value) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
 }
 
 function renderConfig() {
@@ -152,7 +157,7 @@ function renderConfig() {
     document.getElementById('renewAutoEnabled').checked = renew.auto_renew_enabled !== false;
 
     const shortExpiryText = formatEpoch(renew.short_token_expires_at);
-    document.getElementById('renewShortTokenExpiry').value = shortExpiryText || 'Chưa xác định';
+    document.getElementById('renewShortTokenExpiry').value = shortExpiryText;
 
     const autoErrEl = document.getElementById('renewAutoError');
     if (renew.last_error) {
@@ -216,9 +221,9 @@ function collectConfig() {
             app_id: document.getElementById('renewAppId').value.trim(),
             app_secret: document.getElementById('renewAppSecret').value.trim(),
             short_token: document.getElementById('renewShortToken').value.trim(),
-            short_token_expires_at: Number(configData?.token_renew?.short_token_expires_at ?? 0) || 0,
+            short_token_expires_at: toNumberOrZero(configData?.token_renew?.short_token_expires_at),
             long_user_token: configData?.token_renew?.long_user_token ?? '',
-            long_user_token_expires_at: Number(configData?.token_renew?.long_user_token_expires_at ?? 0) || 0,
+            long_user_token_expires_at: toNumberOrZero(configData?.token_renew?.long_user_token_expires_at),
             auto_renew_enabled: document.getElementById('renewAutoEnabled').checked,
             notify_email: document.getElementById('renewNotifyEmail').value.trim(),
             last_renew_at: configData?.token_renew?.last_renew_at ?? '',

@@ -8,6 +8,12 @@ require_once __DIR__ . '/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+define('FB_GRAPH_API_VERSION', 'v19.0');
+define('TOKEN_RENEWAL_WINDOW_SECONDS', 86400); // 24h
+define('SHORT_TOKEN_MIN_VALIDITY_SECONDS', 300); // 5m
+define('EMAIL_THROTTLE_SECONDS', 3600); // 1h
+define('AUTO_RENEW_SUCCESS_MESSAGE', 'Hệ thống đã tự động renew page token thành công.');
+
 // Reject unauthenticated requests
 if (!auth_is_logged_in()) {
     http_response_code(401);
@@ -181,7 +187,7 @@ function http_get_json(string $url, array $query): array
 function renew_page_tokens(string $appId, string $appSecret, string $shortToken): array
 {
     $exchange = http_get_json(
-        'https://graph.facebook.com/v19.0/oauth/access_token',
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/oauth/access_token',
         [
             'grant_type' => 'fb_exchange_token',
             'client_id' => $appId,
@@ -199,7 +205,7 @@ function renew_page_tokens(string $appId, string $appSecret, string $shortToken)
     }
 
     $accounts = http_get_json(
-        'https://graph.facebook.com/v19.0/me/accounts',
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/me/accounts',
         [
             'fields' => 'id,name,access_token',
             'access_token' => $longUserToken,
@@ -351,7 +357,7 @@ function normalize_token_renew(array $cfg): array
 function get_token_expiry_from_debug(string $appId, string $appSecret, string $token): int
 {
     $res = http_get_json(
-        'https://graph.facebook.com/v19.0/debug_token',
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/debug_token',
         [
             'input_token' => $token,
             'access_token' => $appId . '|' . $appSecret,
@@ -376,8 +382,12 @@ function notify_renew_failure(string $toEmail, string $message): void
         return;
     }
     $subject = '[AutoFB] Token renew failed';
-    $body = "AutoFB không thể tự động renew token.\n\nChi tiết:\n" . $message . "\n\nThời gian: " . date('Y-m-d H:i:s');
-    @mail($toEmail, $subject, $body);
+    $safeMessage = str_replace(["\r", "\n", "\0"], ' ', $message);
+    $safeMessage = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $safeMessage) ?? '';
+    $body = "AutoFB không thể tự động renew token.\n\nChi tiết:\n" . $safeMessage . "\n\nThời gian: " . date('Y-m-d H:i:s');
+    if (!mail($toEmail, $subject, $body)) {
+        error_log('AutoFB: failed to send token renew failure email');
+    }
 }
 
 function should_send_failure_email(array $tokenRenew, string $newMessage): bool
@@ -391,10 +401,10 @@ function should_send_failure_email(array $tokenRenew, string $newMessage): bool
     if ($ts === false) {
         return true;
     }
-    return (time() - $ts) >= 3600;
+    return (time() - $ts) >= EMAIL_THROTTLE_SECONDS;
 }
 
-function auto_renew_tokens_if_needed(): ?string
+function check_and_auto_renew_tokens(): ?string
 {
     $cfgRead = read_config_json();
     if (!$cfgRead['ok']) {
@@ -409,8 +419,7 @@ function auto_renew_tokens_if_needed(): ?string
 
     $longExpiresAt = (int) $tokenRenew['long_user_token_expires_at'];
     $now = time();
-    $renewBeforeSeconds = 24 * 3600;
-    if ($longExpiresAt > ($now + $renewBeforeSeconds)) {
+    if ($longExpiresAt > ($now + TOKEN_RENEWAL_WINDOW_SECONDS)) {
         return null;
     }
 
@@ -433,7 +442,7 @@ function auto_renew_tokens_if_needed(): ?string
     if ($shortExpiresAt <= 0) {
         $shortExpiresAt = get_token_expiry_from_debug($appId, $appSecret, $shortToken);
     }
-    if ($shortExpiresAt <= ($now + 300)) {
+    if ($shortExpiresAt <= ($now + SHORT_TOKEN_MIN_VALIDITY_SECONDS)) {
         $msg = 'Short-lived User Token đã hết hạn hoặc sắp hết hạn, không thể tự động renew.';
         $cfg['token_renew']['short_token_expires_at'] = $shortExpiresAt;
         $cfg['token_renew']['last_error'] = $msg;
@@ -478,7 +487,7 @@ function auto_renew_tokens_if_needed(): ?string
         write_config_json($cfg);
     }
 
-    return 'Hệ thống đã tự động renew page token thành công.';
+    return AUTO_RENEW_SUCCESS_MESSAGE;
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -486,7 +495,7 @@ function auto_renew_tokens_if_needed(): ?string
 $action = $_GET['action'] ?? '';
 $autoRenewNotice = null;
 if (in_array($action, ['status', 'get_config', 'start', 'restart'], true)) {
-    $autoRenewNotice = auto_renew_tokens_if_needed();
+    $autoRenewNotice = check_and_auto_renew_tokens();
 }
 
 switch ($action) {
