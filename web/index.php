@@ -102,6 +102,9 @@ $scripts = SCRIPTS;
                         Mỗi hàng tương ứng một trang Facebook. Đảm bảo 3 cột có cùng số hàng.
                     </p>
                     <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" id="btnToggleRenew">
+                            <i class="bi bi-arrow-repeat me-1"></i>Renew token
+                        </button>
                         <button class="btn btn-sm btn-outline-primary" id="btnAddPage">
                             <i class="bi bi-plus-circle me-1"></i>Thêm trang
                         </button>
@@ -109,6 +112,60 @@ $scripts = SCRIPTS;
                             <i class="bi bi-floppy me-1"></i>Lưu cấu hình
                         </button>
                     </div>
+                </div>
+
+                <!-- Token renew form -->
+                <div class="card border-0 bg-body-tertiary mb-3 d-none" id="renewCard">
+                    <div class="card-body py-3">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label small fw-semibold">App ID</label>
+                                <input type="text" class="form-control form-control-sm" id="renewAppId" placeholder="Ví dụ: 1234567890">
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label small fw-semibold">App Secret</label>
+                                <input type="password" class="form-control form-control-sm" id="renewAppSecret" placeholder="App Secret">
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <label class="form-label small fw-semibold">Short-lived User Token</label>
+                                <input type="password" class="form-control form-control-sm" id="renewShortToken" placeholder="Token từ Graph API Explorer">
+                            </div>
+                            <div class="col-12 col-md-1 d-grid align-self-end">
+                                <button class="btn btn-sm btn-success" id="btnRenewTokens">
+                                    <i class="bi bi-lightning-charge me-1"></i>Renew
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-2 mb-0">
+                            Hệ thống sẽ tự động lấy page token mới và cập nhật trực tiếp vào <code>config.json</code> theo <code>page_id</code> hiện có.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Token renew result -->
+                <div class="alert alert-success alert-dismissible d-none mb-3" id="renewResult" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                        <strong id="renewResultTitle">Renew thành công</strong>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+                    </div>
+                    <div class="mb-2 small" id="renewResultStats"></div>
+                    <hr class="my-2">
+                    <p class="small fw-semibold mb-1">
+                        <i class="bi bi-key me-1"></i>Long-lived User Token
+                        <span class="text-muted fw-normal" id="renewResultExpiry"></span>
+                    </p>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control font-monospace" id="renewResultToken" readonly>
+                        <button class="btn btn-outline-secondary" id="btnCopyUserToken" title="Sao chép token">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Page token</strong> đã lưu vào <code>config.json</code> là token vĩnh viễn (không hết hạn) và được dùng để đăng bài.
+                        <strong>User token</strong> này hết hạn sau ~60 ngày — khi đó bạn cần lấy short token mới và renew lại.
+                    </p>
                 </div>
 
                 <!-- Excel paths -->

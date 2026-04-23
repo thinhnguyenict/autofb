@@ -123,6 +123,190 @@ function stop_script(array $script): array
     return ['status' => 'stopped', 'pid' => $pid];
 }
 
+/**
+ * Perform a GET request and decode JSON response.
+ */
+function http_get_json(string $url, array $query): array
+{
+    $fullUrl = $url . '?' . http_build_query($query);
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($fullUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false) {
+            return ['ok' => false, 'error' => 'HTTP request failed: ' . $error];
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 30,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $response = @file_get_contents($fullUrl, false, $context);
+        $status = 0;
+        if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+            $status = (int) $m[1];
+        }
+        if ($response === false) {
+            return ['ok' => false, 'error' => 'HTTP request failed'];
+        }
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data)) {
+        return ['ok' => false, 'error' => 'Invalid JSON response'];
+    }
+    if ($status >= 400 || isset($data['error'])) {
+        $message = $data['error']['message'] ?? ('Facebook API error (HTTP ' . $status . ')');
+        return ['ok' => false, 'error' => $message, 'data' => $data];
+    }
+
+    return ['ok' => true, 'data' => $data];
+}
+
+/**
+ * Renew all configured page tokens from a short-lived user token.
+ */
+function renew_page_tokens(string $appId, string $appSecret, string $shortToken): array
+{
+    $exchange = http_get_json(
+        'https://graph.facebook.com/v19.0/oauth/access_token',
+        [
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'fb_exchange_token' => $shortToken,
+        ]
+    );
+    if (!$exchange['ok']) {
+        return ['ok' => false, 'error' => 'Không thể đổi sang long-lived token: ' . $exchange['error']];
+    }
+
+    $longUserToken = $exchange['data']['access_token'] ?? '';
+    if ($longUserToken === '') {
+        return ['ok' => false, 'error' => 'Facebook không trả về access_token mới'];
+    }
+
+    $accounts = http_get_json(
+        'https://graph.facebook.com/v19.0/me/accounts',
+        [
+            'fields' => 'id,name,access_token',
+            'access_token' => $longUserToken,
+        ]
+    );
+    if (!$accounts['ok']) {
+        return ['ok' => false, 'error' => 'Không thể lấy danh sách page token: ' . $accounts['error']];
+    }
+
+    $pages = $accounts['data']['data'] ?? [];
+    if (!is_array($pages) || count($pages) === 0) {
+        return ['ok' => false, 'error' => 'Không có page nào trả về từ /me/accounts'];
+    }
+
+    if (!file_exists(CONFIG_JSON)) {
+        return ['ok' => false, 'error' => 'config.json not found'];
+    }
+    $raw = file_get_contents(CONFIG_JSON);
+    $cfg = json_decode($raw, true);
+    if (!is_array($cfg)) {
+        return ['ok' => false, 'error' => 'Invalid JSON in config.json'];
+    }
+    if (!isset($cfg['pages']) || !is_array($cfg['pages'])) {
+        $cfg['pages'] = [];
+    }
+
+    $tokenMap = [];
+    $nameMap = [];
+    foreach ($pages as $page) {
+        $pid = (string) ($page['id'] ?? '');
+        $ptk = (string) ($page['access_token'] ?? '');
+        $pname = (string) ($page['name'] ?? '');
+        if ($pid !== '' && $ptk !== '') {
+            $tokenMap[$pid] = $ptk;
+            $nameMap[$pid] = $pname;
+        }
+    }
+    if (count($tokenMap) === 0) {
+        return ['ok' => false, 'error' => 'Không tìm thấy page token hợp lệ'];
+    }
+
+    $existingIds = $cfg['pages']['page_id'] ?? [];
+    $existingNames = $cfg['pages']['page_name'] ?? [];
+    $existingTokens = $cfg['pages']['access_token'] ?? [];
+    if (!is_array($existingIds)) {
+        $existingIds = [];
+    }
+    if (!is_array($existingNames)) {
+        $existingNames = [];
+    }
+    if (!is_array($existingTokens)) {
+        $existingTokens = [];
+    }
+
+    $updatedIds = [];
+    $updatedNames = [];
+    $updatedTokens = [];
+    $renewedCount = 0;
+    $missingIds = [];
+
+    if (count($existingIds) > 0) {
+        foreach ($existingIds as $i => $id) {
+            $sid = (string) $id;
+            $updatedIds[] = $sid;
+            $updatedNames[] = (string) ($existingNames[$i] ?? ($nameMap[$sid] ?? ''));
+            if ($sid !== '' && isset($tokenMap[$sid])) {
+                $updatedTokens[] = $tokenMap[$sid];
+                $renewedCount++;
+            } else {
+                $updatedTokens[] = (string) ($existingTokens[$i] ?? '');
+                if ($sid !== '') {
+                    $missingIds[] = $sid;
+                }
+            }
+        }
+    } else {
+        foreach ($tokenMap as $pid => $token) {
+            $updatedIds[] = $pid;
+            $updatedNames[] = $nameMap[$pid] ?? '';
+            $updatedTokens[] = $token;
+            $renewedCount++;
+        }
+    }
+
+    $cfg['pages']['page_id'] = $updatedIds;
+    $cfg['pages']['page_name'] = $updatedNames;
+    $cfg['pages']['access_token'] = $updatedTokens;
+
+    $json = json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false || file_put_contents(CONFIG_JSON, $json) === false) {
+        return ['ok' => false, 'error' => 'Failed to write config.json'];
+    }
+
+    $expiresIn = (int) ($exchange['data']['expires_in'] ?? 0);
+    $expiresAt = $expiresIn > 0 ? date('d/m/Y H:i', time() + $expiresIn) : null;
+
+    return [
+        'ok' => true,
+        'renewed_count' => $renewedCount,
+        'total_config_pages' => count($updatedIds),
+        'missing_page_ids' => $missingIds,
+        'long_user_token' => $longUserToken,
+        'long_user_token_expires_in' => $expiresIn,
+        'long_user_token_expires_at' => $expiresAt,
+    ];
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 $action = $_GET['action'] ?? '';
@@ -266,6 +450,49 @@ switch ($action) {
             break;
         }
         echo json_encode(['status' => 'saved']);
+        break;
+
+    // ── Renew page tokens from short-lived token ─────────────────────────────
+    case 'renew_tokens':
+        $body = file_get_contents('php://input');
+        $data = json_decode($body, true);
+        if (!is_array($data)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid JSON payload']);
+            break;
+        }
+
+        $appId = trim((string) ($data['app_id'] ?? ''));
+        $appSecret = trim((string) ($data['app_secret'] ?? ''));
+        $shortToken = trim((string) ($data['short_token'] ?? ''));
+
+        if ($appId === '' || $appSecret === '' || $shortToken === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields: app_id, app_secret, short_token']);
+            break;
+        }
+        if (!preg_match('/^[0-9]+$/', $appId)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid app_id format']);
+            break;
+        }
+
+        $result = renew_page_tokens($appId, $appSecret, $shortToken);
+        if (!$result['ok']) {
+            http_response_code(400);
+            echo json_encode(['error' => $result['error']]);
+            break;
+        }
+
+        echo json_encode([
+            'status' => 'renewed',
+            'renewed_count' => $result['renewed_count'],
+            'total_config_pages' => $result['total_config_pages'],
+            'missing_page_ids' => $result['missing_page_ids'],
+            'long_user_token' => $result['long_user_token'],
+            'long_user_token_expires_in' => $result['long_user_token_expires_in'],
+            'long_user_token_expires_at' => $result['long_user_token_expires_at'],
+        ]);
         break;
 
     // ── Logout ───────────────────────────────────────────────────────────────

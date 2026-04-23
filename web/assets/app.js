@@ -190,6 +190,73 @@ async function saveConfig() {
     }
 }
 
+async function renewTokens() {
+    const appId = document.getElementById('renewAppId').value.trim();
+    const appSecret = document.getElementById('renewAppSecret').value.trim();
+    const shortToken = document.getElementById('renewShortToken').value.trim();
+
+    if (!appId || !appSecret || !shortToken) {
+        showToast('Vui lòng nhập đủ App ID, App Secret và short token', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnRenewTokens');
+    btn.disabled = true;
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Renewing...';
+
+    try {
+        const res = await fetch(`${API}?action=renew_tokens`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                app_id: appId,
+                app_secret: appSecret,
+                short_token: shortToken,
+            }),
+        });
+        if (res.status === 401) { window.location.href = 'login.php'; return; }
+        const data = await res.json();
+        if (data.status === 'renewed') {
+            let msg = `✅ Renew thành công ${data.renewed_count}/${data.total_config_pages} token`;
+            if (Array.isArray(data.missing_page_ids) && data.missing_page_ids.length > 0) {
+                msg += `. Thiếu page_id: ${data.missing_page_ids.join(', ')}`;
+            }
+            showToast(msg, data.missing_page_ids?.length ? 'warning' : 'success');
+
+            // Populate result box
+            const resultBox = document.getElementById('renewResult');
+            resultBox.classList.remove('d-none', 'alert-warning');
+            resultBox.classList.add(data.missing_page_ids?.length ? 'alert-warning' : 'alert-success');
+
+            let statsHtml = `Đã cập nhật <strong>${data.renewed_count}</strong> / ${data.total_config_pages} page token vào config.json.`;
+            if (Array.isArray(data.missing_page_ids) && data.missing_page_ids.length > 0) {
+                statsHtml += ` <span class="text-danger">Không tìm thấy token cho page_id: ${escHtml(data.missing_page_ids.join(', '))}</span>`;
+            }
+            document.getElementById('renewResultStats').innerHTML = statsHtml;
+
+            const expiryEl = document.getElementById('renewResultExpiry');
+            if (data.long_user_token_expires_at) {
+                expiryEl.textContent = ` — hết hạn lúc ${data.long_user_token_expires_at}`;
+            } else {
+                expiryEl.textContent = '';
+            }
+
+            const tokenInput = document.getElementById('renewResultToken');
+            tokenInput.value = data.long_user_token ?? '';
+
+            await loadConfig();
+        } else {
+            showToast('❌ Renew thất bại: ' + (data.error ?? 'Unknown'), 'danger');
+        }
+    } catch (err) {
+        showToast('❌ Renew thất bại: ' + err.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+    }
+}
+
 // ── Log viewer ────────────────────────────────────────────────────────────────
 async function loadLog(script) {
     const data = await apiCall(`log&script=${encodeURIComponent(script)}`);
@@ -224,6 +291,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Add page row
+    document.getElementById('btnToggleRenew').addEventListener('click', () => {
+        document.getElementById('renewCard').classList.toggle('d-none');
+    });
+
+    document.getElementById('btnRenewTokens').addEventListener('click', renewTokens);
+
+    document.getElementById('btnCopyUserToken').addEventListener('click', () => {
+        const val = document.getElementById('renewResultToken').value;
+        if (!val) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(val).then(() => {
+                showToast('✅ Đã sao chép long-lived user token!', 'success');
+            }).catch(() => {
+                showToast('⚠️ Không thể sao chép tự động — hãy bôi đen và copy thủ công', 'warning');
+                document.getElementById('renewResultToken').select();
+            });
+        } else {
+            showToast('⚠️ Trình duyệt không hỗ trợ copy tự động — hãy bôi đen và copy thủ công', 'warning');
+            document.getElementById('renewResultToken').select();
+        }
+    });
+
     document.getElementById('btnAddPage').addEventListener('click', () => {
         const count = document.querySelectorAll('#pagesBody tr').length;
         addPageRow(count + 1);
