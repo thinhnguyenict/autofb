@@ -142,6 +142,32 @@ $scripts = SCRIPTS;
                     </div>
                 </div>
 
+                <!-- Token renew result -->
+                <div class="alert alert-success alert-dismissible d-none mb-3" id="renewResult" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                        <strong id="renewResultTitle">Renew thành công</strong>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+                    </div>
+                    <div class="mb-2 small" id="renewResultStats"></div>
+                    <hr class="my-2">
+                    <p class="small fw-semibold mb-1">
+                        <i class="bi bi-key me-1"></i>Long-lived User Token
+                        <span class="text-muted fw-normal" id="renewResultExpiry"></span>
+                    </p>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control font-monospace" id="renewResultToken" readonly>
+                        <button class="btn btn-outline-secondary" id="btnCopyUserToken" title="Sao chép token">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <p class="text-muted small mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Page token</strong> đã lưu vào <code>config.json</code> là token vĩnh viễn (không hết hạn) và được dùng để đăng bài.
+                        <strong>User token</strong> này hết hạn sau ~60 ngày — khi đó bạn cần lấy short token mới và renew lại.
+                    </p>
+                </div>
+
                 <!-- Excel paths -->
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-6">

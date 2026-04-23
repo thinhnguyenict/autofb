@@ -223,6 +223,28 @@ async function renewTokens() {
                 msg += `. Thiếu page_id: ${data.missing_page_ids.join(', ')}`;
             }
             showToast(msg, data.missing_page_ids?.length ? 'warning' : 'success');
+
+            // Populate result box
+            const resultBox = document.getElementById('renewResult');
+            resultBox.classList.remove('d-none', 'alert-warning');
+            resultBox.classList.add(data.missing_page_ids?.length ? 'alert-warning' : 'alert-success');
+
+            let statsHtml = `Đã cập nhật <strong>${data.renewed_count}</strong> / ${data.total_config_pages} page token vào config.json.`;
+            if (Array.isArray(data.missing_page_ids) && data.missing_page_ids.length > 0) {
+                statsHtml += ` <span class="text-danger">Không tìm thấy token cho page_id: ${escHtml(data.missing_page_ids.join(', '))}</span>`;
+            }
+            document.getElementById('renewResultStats').innerHTML = statsHtml;
+
+            const expiryEl = document.getElementById('renewResultExpiry');
+            if (data.long_user_token_expires_at) {
+                expiryEl.textContent = ` — hết hạn lúc ${data.long_user_token_expires_at}`;
+            } else {
+                expiryEl.textContent = '';
+            }
+
+            const tokenInput = document.getElementById('renewResultToken');
+            tokenInput.value = data.long_user_token ?? '';
+
             await loadConfig();
         } else {
             showToast('❌ Renew thất bại: ' + (data.error ?? 'Unknown'), 'danger');
@@ -274,6 +296,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btnRenewTokens').addEventListener('click', renewTokens);
+
+    document.getElementById('btnCopyUserToken').addEventListener('click', () => {
+        const val = document.getElementById('renewResultToken').value;
+        if (!val) return;
+        navigator.clipboard.writeText(val).then(() => {
+            showToast('✅ Đã sao chép long-lived user token!', 'success');
+        }).catch(() => {
+            document.getElementById('renewResultToken').select();
+            document.execCommand('copy');
+            showToast('✅ Đã sao chép long-lived user token!', 'success');
+        });
+    });
 
     document.getElementById('btnAddPage').addEventListener('click', () => {
         const count = document.querySelectorAll('#pagesBody tr').length;

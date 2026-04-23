@@ -293,12 +293,17 @@ function renew_page_tokens(string $appId, string $appSecret, string $shortToken)
         return ['ok' => false, 'error' => 'Failed to write config.json'];
     }
 
+    $expiresIn = (int) ($exchange['data']['expires_in'] ?? 0);
+    $expiresAt = $expiresIn > 0 ? date('d/m/Y H:i', time() + $expiresIn) : null;
+
     return [
         'ok' => true,
         'renewed_count' => $renewedCount,
         'total_config_pages' => count($updatedIds),
         'missing_page_ids' => $missingIds,
-        'long_user_token_expires_in' => (int) ($exchange['data']['expires_in'] ?? 0),
+        'long_user_token' => $longUserToken,
+        'long_user_token_expires_in' => $expiresIn,
+        'long_user_token_expires_at' => $expiresAt,
     ];
 }
 
@@ -484,7 +489,9 @@ switch ($action) {
             'renewed_count' => $result['renewed_count'],
             'total_config_pages' => $result['total_config_pages'],
             'missing_page_ids' => $result['missing_page_ids'],
+            'long_user_token' => $result['long_user_token'],
             'long_user_token_expires_in' => $result['long_user_token_expires_in'],
+            'long_user_token_expires_at' => $result['long_user_token_expires_at'],
         ]);
         break;
 
