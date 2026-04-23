@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 
+DEFAULT_API_VERSION = "v25.0"
 # Loop over each row in the DataFrame
 # def read_excel(file):
 #     try:
@@ -52,9 +53,9 @@ def update_publish_status(file, index):
     print("Successfully updated the publish status")
 
 
-def create_ad_post(picture, message, link, page, access_token, act_id):
+def create_ad_post(picture, message, link, page, access_token, act_id, api_version=DEFAULT_API_VERSION):
     # api url
-    url = f"https://graph.facebook.com/v21.0/{act_id}/adcreatives"
+    url = f"https://graph.facebook.com/{api_version}/{act_id}/adcreatives"
 
     # Define the payload data
     payload = {
@@ -86,19 +87,19 @@ def create_ad_post(picture, message, link, page, access_token, act_id):
 
     # Send the POST request
     # import ipdb; ipdb.set_trace()
-    response = requests.post(url, json=payload)
+    response = requests.post(url, json=payload, timeout=60)
     ad_post_id = response.text
     return ad_post_id
 
 
-def get_ad_effective_object_story_id(ad_post_id, access_token):
-    url = f'https://graph.facebook.com/v21.0/{ad_post_id}'
+def get_ad_effective_object_story_id(ad_post_id, access_token, api_version=DEFAULT_API_VERSION):
+    url = f'https://graph.facebook.com/{api_version}/{ad_post_id}'
 
     params = {
         'fields': 'effective_object_story_id',
         'access_token': access_token
     }
-    response = requests.get(url=url, params=params)
+    response = requests.get(url=url, params=params, timeout=60)
     if response.status_code == 200:
         data = response.json()
         effective_object_story_id=data['effective_object_story_id']
@@ -108,8 +109,8 @@ def get_ad_effective_object_story_id(ad_post_id, access_token):
         return None
 
 
-def publish_ad_post(access_token, effective_object_story_id):
-    url = f'https://graph.facebook.com/v21.0/{effective_object_story_id}'
+def publish_ad_post(access_token, effective_object_story_id, api_version=DEFAULT_API_VERSION):
+    url = f'https://graph.facebook.com/{api_version}/{effective_object_story_id}'
     headers = {
     'accept': 'application/json, text/plain, */*',
     'content-type': 'application/json'
@@ -118,10 +119,9 @@ def publish_ad_post(access_token, effective_object_story_id):
         'is_published': True
     }
     params = {'access_token': access_token}
-    response = requests.post(url=url, params=params, json=payload, headers=headers)
+    response = requests.post(url=url, params=params, json=payload, headers=headers, timeout=60)
     # import ipdb; ipdb.set_trace()
     if response.status_code == 200:
         print(response.json())
     else:
         print(f"Error: {response.status_code}, {response.text}")
-

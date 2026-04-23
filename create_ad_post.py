@@ -1,6 +1,8 @@
 import json, random, logging
 from utils import picture_utils, ad_post_utils
 
+API_VERSION = "v25.0"
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)s:%(message)s',
     level=logging.INFO)
@@ -43,16 +45,21 @@ def main():
 
 
         # get ad post id and publish post
-        ad_post_data = json.loads(ad_post_utils.create_ad_post(img_url, message, link, page, token, act_id))
+        ad_post_data = json.loads(
+            ad_post_utils.create_ad_post(
+                img_url, message, link, page, token, act_id, api_version=API_VERSION
+            )
+        )
         ad_post_id = ad_post_data["id"]
 
         import time; time.sleep(40) #wait till the post can be fetched from facebook (fb workflow)
-        effective_object_story_id = ad_post_utils.get_ad_effective_object_story_id(ad_post_id, token)
+        effective_object_story_id = ad_post_utils.get_ad_effective_object_story_id(
+            ad_post_id, token, api_version=API_VERSION
+        )
         print(effective_object_story_id)
-        ad_post_utils.publish_ad_post(token, effective_object_story_id)
+        ad_post_utils.publish_ad_post(token, effective_object_story_id, api_version=API_VERSION)
         ad_post_utils.update_publish_status(excel_file, cell_index)
         print(f"Done publishing post to {name} page")
 
 if __name__ ==  "__main__":
     main()
-

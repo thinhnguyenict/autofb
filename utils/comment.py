@@ -17,12 +17,12 @@ def random_comment_from_excel(excel_file):
 
 
 def comment_on_post(post_id, message, link, access_token):
-    url = f"https://graph.facebook.com/v20.0/{post_id}/comments"
+    url = f"https://graph.facebook.com/v25.0/{post_id}/comments"
     params = {
         "message": f"[You may like] {message}: {link}",
         "access_token": access_token
     }
-    response = requests.post(url, params=params)
+    response = requests.post(url, params=params, timeout=60)
     if response.status_code == 200:
         print("Comment posted successfully.")
     else:
