@@ -300,13 +300,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnCopyUserToken').addEventListener('click', () => {
         const val = document.getElementById('renewResultToken').value;
         if (!val) return;
-        navigator.clipboard.writeText(val).then(() => {
-            showToast('✅ Đã sao chép long-lived user token!', 'success');
-        }).catch(() => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(val).then(() => {
+                showToast('✅ Đã sao chép long-lived user token!', 'success');
+            }).catch(() => {
+                showToast('⚠️ Không thể sao chép tự động — hãy bôi đen và copy thủ công', 'warning');
+                document.getElementById('renewResultToken').select();
+            });
+        } else {
+            showToast('⚠️ Trình duyệt không hỗ trợ copy tự động — hãy bôi đen và copy thủ công', 'warning');
             document.getElementById('renewResultToken').select();
-            document.execCommand('copy');
-            showToast('✅ Đã sao chép long-lived user token!', 'success');
-        });
+        }
     });
 
     document.getElementById('btnAddPage').addEventListener('click', () => {
