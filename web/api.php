@@ -8,6 +8,12 @@ require_once __DIR__ . '/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+define('FB_GRAPH_API_VERSION', 'v19.0');
+define('TOKEN_RENEWAL_WINDOW_SECONDS', 86400); // 24h
+define('SHORT_TOKEN_MIN_VALIDITY_SECONDS', 300); // 5m
+define('EMAIL_THROTTLE_SECONDS', 3600); // 1h
+define('AUTO_RENEW_SUCCESS_MESSAGE', 'Hệ thống đã tự động renew page token thành công.');
+
 // Reject unauthenticated requests
 if (!auth_is_logged_in()) {
     http_response_code(401);
@@ -181,7 +187,7 @@ function http_get_json(string $url, array $query): array
 function renew_page_tokens(string $appId, string $appSecret, string $shortToken): array
 {
     $exchange = http_get_json(
-        'https://graph.facebook.com/v19.0/oauth/access_token',
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/oauth/access_token',
         [
             'grant_type' => 'fb_exchange_token',
             'client_id' => $appId,
@@ -199,7 +205,7 @@ function renew_page_tokens(string $appId, string $appSecret, string $shortToken)
     }
 
     $accounts = http_get_json(
-        'https://graph.facebook.com/v19.0/me/accounts',
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/me/accounts',
         [
             'fields' => 'id,name,access_token',
             'access_token' => $longUserToken,
@@ -307,9 +313,190 @@ function renew_page_tokens(string $appId, string $appSecret, string $shortToken)
     ];
 }
 
+function read_config_json(): array
+{
+    if (!file_exists(CONFIG_JSON)) {
+        return ['ok' => false, 'error' => 'config.json not found'];
+    }
+    $raw = file_get_contents(CONFIG_JSON);
+    $cfg = json_decode($raw, true);
+    if (!is_array($cfg)) {
+        return ['ok' => false, 'error' => 'Invalid JSON in config.json'];
+    }
+    return ['ok' => true, 'config' => $cfg];
+}
+
+function write_config_json(array $cfg): bool
+{
+    $json = json_encode($cfg, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return $json !== false && file_put_contents(CONFIG_JSON, $json) !== false;
+}
+
+function normalize_token_renew(array $cfg): array
+{
+    $tokenRenew = $cfg['token_renew'] ?? [];
+    if (!is_array($tokenRenew)) {
+        $tokenRenew = [];
+    }
+
+    return [
+        'app_id' => trim((string) ($tokenRenew['app_id'] ?? '')),
+        'app_secret' => trim((string) ($tokenRenew['app_secret'] ?? '')),
+        'short_token' => trim((string) ($tokenRenew['short_token'] ?? '')),
+        'short_token_expires_at' => (int) ($tokenRenew['short_token_expires_at'] ?? 0),
+        'long_user_token' => trim((string) ($tokenRenew['long_user_token'] ?? '')),
+        'long_user_token_expires_at' => (int) ($tokenRenew['long_user_token_expires_at'] ?? 0),
+        'auto_renew_enabled' => isset($tokenRenew['auto_renew_enabled']) ? (bool) $tokenRenew['auto_renew_enabled'] : true,
+        'notify_email' => trim((string) ($tokenRenew['notify_email'] ?? '')),
+        'last_renew_at' => trim((string) ($tokenRenew['last_renew_at'] ?? '')),
+        'last_error' => trim((string) ($tokenRenew['last_error'] ?? '')),
+        'last_error_at' => trim((string) ($tokenRenew['last_error_at'] ?? '')),
+    ];
+}
+
+function get_token_expiry_from_debug(string $appId, string $appSecret, string $token): int
+{
+    $res = http_get_json(
+        'https://graph.facebook.com/' . FB_GRAPH_API_VERSION . '/debug_token',
+        [
+            'input_token' => $token,
+            'access_token' => $appId . '|' . $appSecret,
+        ]
+    );
+    if (!$res['ok']) {
+        return 0;
+    }
+    $data = $res['data']['data'] ?? [];
+    if (!is_array($data)) {
+        return 0;
+    }
+    if (isset($data['is_valid']) && !$data['is_valid']) {
+        return 0;
+    }
+    return (int) ($data['expires_at'] ?? 0);
+}
+
+function notify_renew_failure(string $toEmail, string $message): void
+{
+    if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    $subject = '[AutoFB] Token renew failed';
+    $safeMessage = str_replace(["\r", "\n", "\0"], ' ', $message);
+    $safeMessage = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $safeMessage) ?? '';
+    $body = "AutoFB không thể tự động renew token.\n\nChi tiết:\n" . $safeMessage . "\n\nThời gian: " . date('Y-m-d H:i:s');
+    if (!mail($toEmail, $subject, $body)) {
+        error_log('AutoFB: failed to send token renew failure email');
+    }
+}
+
+function should_send_failure_email(array $tokenRenew, string $newMessage): bool
+{
+    $prevMessage = trim((string) ($tokenRenew['last_error'] ?? ''));
+    $prevAt = trim((string) ($tokenRenew['last_error_at'] ?? ''));
+    if ($prevMessage !== $newMessage) {
+        return true;
+    }
+    $ts = strtotime($prevAt);
+    if ($ts === false) {
+        return true;
+    }
+    return (time() - $ts) >= EMAIL_THROTTLE_SECONDS;
+}
+
+function check_and_auto_renew_tokens(): ?string
+{
+    $cfgRead = read_config_json();
+    if (!$cfgRead['ok']) {
+        return null;
+    }
+    $cfg = $cfgRead['config'];
+    $tokenRenew = normalize_token_renew($cfg);
+
+    if (!$tokenRenew['auto_renew_enabled']) {
+        return null;
+    }
+
+    $longExpiresAt = (int) $tokenRenew['long_user_token_expires_at'];
+    $now = time();
+    if ($longExpiresAt > ($now + TOKEN_RENEWAL_WINDOW_SECONDS)) {
+        return null;
+    }
+
+    $appId = $tokenRenew['app_id'];
+    $appSecret = $tokenRenew['app_secret'];
+    $shortToken = $tokenRenew['short_token'];
+
+    if ($appId === '' || $appSecret === '' || $shortToken === '') {
+        $msg = 'Thiếu App ID/App Secret/Short-lived User Token để tự động renew.';
+        $cfg['token_renew']['last_error'] = $msg;
+        $cfg['token_renew']['last_error_at'] = date('c');
+        write_config_json($cfg);
+        if (should_send_failure_email($tokenRenew, $msg)) {
+            notify_renew_failure($tokenRenew['notify_email'], $msg);
+        }
+        return $msg;
+    }
+
+    $shortExpiresAt = (int) $tokenRenew['short_token_expires_at'];
+    if ($shortExpiresAt <= 0) {
+        $shortExpiresAt = get_token_expiry_from_debug($appId, $appSecret, $shortToken);
+    }
+    if ($shortExpiresAt <= ($now + SHORT_TOKEN_MIN_VALIDITY_SECONDS)) {
+        $msg = 'Short-lived User Token đã hết hạn hoặc sắp hết hạn, không thể tự động renew.';
+        $cfg['token_renew']['short_token_expires_at'] = $shortExpiresAt;
+        $cfg['token_renew']['last_error'] = $msg;
+        $cfg['token_renew']['last_error_at'] = date('c');
+        write_config_json($cfg);
+        if (should_send_failure_email($tokenRenew, $msg)) {
+            notify_renew_failure($tokenRenew['notify_email'], $msg);
+        }
+        return $msg;
+    }
+
+    $result = renew_page_tokens($appId, $appSecret, $shortToken);
+    if (!$result['ok']) {
+        $msg = 'Auto renew thất bại: ' . $result['error'];
+        $cfgRead = read_config_json();
+        if ($cfgRead['ok']) {
+            $cfg = $cfgRead['config'];
+            $cfg['token_renew']['short_token_expires_at'] = $shortExpiresAt;
+            $cfg['token_renew']['last_error'] = $msg;
+            $cfg['token_renew']['last_error_at'] = date('c');
+            write_config_json($cfg);
+        }
+        if (should_send_failure_email($tokenRenew, $msg)) {
+            notify_renew_failure($tokenRenew['notify_email'], $msg);
+        }
+        return $msg;
+    }
+
+    $cfgRead = read_config_json();
+    if ($cfgRead['ok']) {
+        $cfg = $cfgRead['config'];
+        $cfg['token_renew'] = normalize_token_renew($cfg);
+        $cfg['token_renew']['app_id'] = $appId;
+        $cfg['token_renew']['app_secret'] = $appSecret;
+        $cfg['token_renew']['short_token'] = $shortToken;
+        $cfg['token_renew']['short_token_expires_at'] = $shortExpiresAt;
+        $cfg['token_renew']['long_user_token'] = (string) ($result['long_user_token'] ?? '');
+        $cfg['token_renew']['long_user_token_expires_at'] = ($now + (int) ($result['long_user_token_expires_in'] ?? 0));
+        $cfg['token_renew']['last_renew_at'] = date('c');
+        $cfg['token_renew']['last_error'] = '';
+        $cfg['token_renew']['last_error_at'] = '';
+        write_config_json($cfg);
+    }
+
+    return AUTO_RENEW_SUCCESS_MESSAGE;
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 $action = $_GET['action'] ?? '';
+$autoRenewNotice = null;
+if (in_array($action, ['status', 'get_config', 'start', 'restart'], true)) {
+    $autoRenewNotice = check_and_auto_renew_tokens();
+}
 
 switch ($action) {
 
@@ -323,6 +510,9 @@ switch ($action) {
                 'running' => $pid > 0,
                 'pid'     => $pid,
             ];
+        }
+        if ($autoRenewNotice !== null) {
+            $result['_auto_renew_notice'] = $autoRenewNotice;
         }
         echo json_encode($result);
         break;
@@ -394,17 +584,14 @@ switch ($action) {
 
     // ── Read config.json ─────────────────────────────────────────────────────
     case 'get_config':
-        if (!file_exists(CONFIG_JSON)) {
-            echo json_encode(['error' => 'config.json not found']);
+        $cfgRead = read_config_json();
+        if (!$cfgRead['ok']) {
+            echo json_encode(['error' => $cfgRead['error']]);
             break;
         }
-        $raw = file_get_contents(CONFIG_JSON);
-        $cfg = json_decode($raw, true);
-        if ($cfg === null) {
-            echo json_encode(['error' => 'Invalid JSON in config.json']);
-            break;
-        }
-        echo json_encode(['config' => $cfg]);
+        $cfg = $cfgRead['config'];
+        $cfg['token_renew'] = normalize_token_renew($cfg);
+        echo json_encode(['config' => $cfg, 'auto_renew_notice' => $autoRenewNotice]);
         break;
 
     // ── Save config.json ─────────────────────────────────────────────────────
@@ -418,7 +605,7 @@ switch ($action) {
         }
 
         // Only allow known top-level keys to avoid overwriting unexpected data
-        $allowed = ['excel', 'pages'];
+        $allowed = ['excel', 'pages', 'token_renew'];
         foreach (array_keys($data) as $k) {
             if (!in_array($k, $allowed, true)) {
                 http_response_code(400);
@@ -439,6 +626,35 @@ switch ($action) {
             if (count(array_unique($lengths)) > 1) {
                 http_response_code(400);
                 echo json_encode(['error' => 'access_token, page_id and page_name arrays must have the same length']);
+                break;
+            }
+        }
+
+        if (isset($data['token_renew'])) {
+            if (!is_array($data['token_renew'])) {
+                http_response_code(400);
+                echo json_encode(['error' => 'token_renew must be an object']);
+                break;
+            }
+            $tr = $data['token_renew'];
+            $data['token_renew'] = [
+                'app_id' => trim((string) ($tr['app_id'] ?? '')),
+                'app_secret' => trim((string) ($tr['app_secret'] ?? '')),
+                'short_token' => trim((string) ($tr['short_token'] ?? '')),
+                'short_token_expires_at' => (int) ($tr['short_token_expires_at'] ?? 0),
+                'long_user_token' => trim((string) ($tr['long_user_token'] ?? '')),
+                'long_user_token_expires_at' => (int) ($tr['long_user_token_expires_at'] ?? 0),
+                'auto_renew_enabled' => isset($tr['auto_renew_enabled']) ? (bool) $tr['auto_renew_enabled'] : true,
+                'notify_email' => trim((string) ($tr['notify_email'] ?? '')),
+                'last_renew_at' => trim((string) ($tr['last_renew_at'] ?? '')),
+                'last_error' => trim((string) ($tr['last_error'] ?? '')),
+                'last_error_at' => trim((string) ($tr['last_error_at'] ?? '')),
+            ];
+
+            $email = $data['token_renew']['notify_email'];
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                http_response_code(400);
+                echo json_encode(['error' => 'notify_email is invalid']);
                 break;
             }
         }
@@ -482,6 +698,24 @@ switch ($action) {
             http_response_code(400);
             echo json_encode(['error' => $result['error']]);
             break;
+        }
+
+        $cfgRead = read_config_json();
+        if ($cfgRead['ok']) {
+            $cfg = $cfgRead['config'];
+            $tokenRenew = normalize_token_renew($cfg);
+            $shortExpiresAt = get_token_expiry_from_debug($appId, $appSecret, $shortToken);
+            $tokenRenew['app_id'] = $appId;
+            $tokenRenew['app_secret'] = $appSecret;
+            $tokenRenew['short_token'] = $shortToken;
+            $tokenRenew['short_token_expires_at'] = $shortExpiresAt;
+            $tokenRenew['long_user_token'] = (string) ($result['long_user_token'] ?? '');
+            $tokenRenew['long_user_token_expires_at'] = time() + (int) ($result['long_user_token_expires_in'] ?? 0);
+            $tokenRenew['last_renew_at'] = date('c');
+            $tokenRenew['last_error'] = '';
+            $tokenRenew['last_error_at'] = '';
+            $cfg['token_renew'] = $tokenRenew;
+            write_config_json($cfg);
         }
 
         echo json_encode([
