@@ -2,6 +2,7 @@
 
 const API = 'api.php';
 let autoRefreshTimer = null;
+let lastAutoRenewNotice = '';
 
 // ── Toast helper ──────────────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {
@@ -45,7 +46,13 @@ async function refreshStatus() {
     const data = await apiCall('status');
     if (!data) return;
 
+    if (data._auto_renew_notice && data._auto_renew_notice !== lastAutoRenewNotice) {
+        showToast(`⚠️ ${data._auto_renew_notice}`, 'warning');
+        lastAutoRenewNotice = data._auto_renew_notice;
+    }
+
     for (const [key, info] of Object.entries(data)) {
+        if (key.startsWith('_')) continue;
         const card  = document.querySelector(`.process-card[data-script="${key}"]`);
         if (!card) continue;
 
@@ -100,8 +107,20 @@ async function loadConfig() {
         showToast('Không thể đọc config.json: ' + (data?.error ?? 'Unknown error'), 'danger');
         return;
     }
+    if (data.auto_renew_notice && data.auto_renew_notice !== lastAutoRenewNotice) {
+        showToast(`ℹ️ ${data.auto_renew_notice}`, 'info');
+        lastAutoRenewNotice = data.auto_renew_notice;
+    }
     configData = data.config;
     renderConfig();
+}
+
+function formatEpoch(epochSeconds) {
+    const epoch = Number(epochSeconds || 0);
+    if (!epoch) return '';
+    const dt = new Date(epoch * 1000);
+    if (Number.isNaN(dt.getTime())) return '';
+    return dt.toLocaleString('vi-VN');
 }
 
 function renderConfig() {
@@ -123,6 +142,29 @@ function renderConfig() {
     const len = Math.max(tokens.length, pageIds.length, names.length);
     for (let i = 0; i < len; i++) {
         addPageRow(i + 1, names[i] ?? '', pageIds[i] ?? '', tokens[i] ?? '');
+    }
+
+    const renew = configData.token_renew ?? {};
+    document.getElementById('renewAppId').value = renew.app_id ?? '';
+    document.getElementById('renewAppSecret').value = renew.app_secret ?? '';
+    document.getElementById('renewShortToken').value = renew.short_token ?? '';
+    document.getElementById('renewNotifyEmail').value = renew.notify_email ?? '';
+    document.getElementById('renewAutoEnabled').checked = renew.auto_renew_enabled !== false;
+
+    const shortExpiryText = formatEpoch(renew.short_token_expires_at);
+    document.getElementById('renewShortTokenExpiry').value = shortExpiryText || 'Chưa xác định';
+
+    const autoErrEl = document.getElementById('renewAutoError');
+    if (renew.last_error) {
+        autoErrEl.textContent = `Lỗi auto renew: ${renew.last_error}${renew.last_error_at ? ` (${renew.last_error_at})` : ''}`;
+        autoErrEl.classList.remove('d-none');
+        if (renew.last_error !== lastAutoRenewNotice) {
+            showToast(`❌ ${renew.last_error}`, 'danger');
+            lastAutoRenewNotice = renew.last_error;
+        }
+    } else {
+        autoErrEl.textContent = '';
+        autoErrEl.classList.add('d-none');
     }
 }
 
@@ -169,6 +211,19 @@ function collectConfig() {
             page_id      : ids,
             page_name    : names,
             act_id       : document.getElementById('cfgActId').value.trim(),
+        },
+        token_renew: {
+            app_id: document.getElementById('renewAppId').value.trim(),
+            app_secret: document.getElementById('renewAppSecret').value.trim(),
+            short_token: document.getElementById('renewShortToken').value.trim(),
+            short_token_expires_at: Number(configData?.token_renew?.short_token_expires_at ?? 0) || 0,
+            long_user_token: configData?.token_renew?.long_user_token ?? '',
+            long_user_token_expires_at: Number(configData?.token_renew?.long_user_token_expires_at ?? 0) || 0,
+            auto_renew_enabled: document.getElementById('renewAutoEnabled').checked,
+            notify_email: document.getElementById('renewNotifyEmail').value.trim(),
+            last_renew_at: configData?.token_renew?.last_renew_at ?? '',
+            last_error: configData?.token_renew?.last_error ?? '',
+            last_error_at: configData?.token_renew?.last_error_at ?? '',
         },
     };
 }

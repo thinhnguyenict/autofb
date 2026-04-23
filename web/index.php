@@ -136,9 +136,28 @@ $scripts = SCRIPTS;
                                 </button>
                             </div>
                         </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Email nhận cảnh báo lỗi renew (tuỳ chọn)</label>
+                                <input type="email" class="form-control form-control-sm" id="renewNotifyEmail" placeholder="you@example.com">
+                            </div>
+                            <div class="col-12 col-md-4 d-flex align-items-end">
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="renewAutoEnabled" checked>
+                                    <label class="form-check-label small fw-semibold" for="renewAutoEnabled">
+                                        Tự động renew khi token gần hết hạn
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold">Hạn Short Token</label>
+                                <input type="text" class="form-control form-control-sm" id="renewShortTokenExpiry" readonly placeholder="Chưa xác định">
+                            </div>
+                        </div>
                         <p class="text-muted small mt-2 mb-0">
-                            Hệ thống sẽ tự động lấy page token mới và cập nhật trực tiếp vào <code>config.json</code> theo <code>page_id</code> hiện có.
+                            Hệ thống sẽ lưu App ID/App Secret/Short Token, tự tính thời gian hết hạn và tự động renew page token vào <code>config.json</code> theo <code>page_id</code>.
                         </p>
+                        <p class="small mt-2 mb-0 text-danger d-none" id="renewAutoError"></p>
                     </div>
                 </div>
 
