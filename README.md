@@ -1,3 +1,15 @@
+## Docker
+
+```bash
+cp config.json.example config.json
+docker compose up --build
+```
+
+Open `http://localhost:8000`.
+
+Set `APP_PASSWORD_HASH` in your shell if you want to override the dashboard
+password hash.
+
  - create token for each pages (though have same admin)
  1. get token user (with permissions) from https://developers.facebook.com/tools/explorer/1055220295777851/?method=GET&path=me%3Ffields%3Did%2Cname&version=v19.0
 
@@ -50,7 +62,6 @@ Retrieve the access_token for each page you want to manage.
 Now, you have long-lived tokens for both the user and the pages. These tokens should be saved securely, and you can use them to manage your pages through the Graph API.
 
 Keep in mind that access tokens have expiration periods, so you may need to handle token renewal if they expire. Additionally, make sure to handle tokens securely, as they grant access to sensitive information.
-
 
 
 
