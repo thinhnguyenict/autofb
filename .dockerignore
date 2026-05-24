@@ -1,0 +1,14 @@
+.git
+.github
+__pycache__/
+*.pyc
+*.log
+nohup.out
+output/
+videos/
+img/
+*.xlsx
+config.json
+chromedriver
+.venv/
+venv/

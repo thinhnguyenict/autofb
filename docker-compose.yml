@@ -1,0 +1,15 @@
+services:
+  autofb:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+    volumes:
+      - ./config.json:/app/config.json
+      - ./data.xlsx:/app/data.xlsx
+      - ./caption.xlsx:/app/caption.xlsx
+      - ./img:/app/img
+      - ./videos:/app/videos
+      - ./output:/app/output
+    restart: unless-stopped

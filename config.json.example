@@ -1,6 +1,7 @@
 {
     "excel": {
-      "path": "./data.xlsx"
+      "path": "./data.xlsx",
+      "caption_file": "./caption.xlsx"
     },
     "pages": {
         "access_token": ["EAAOZCt57jvjsBOZCabpiKsseXAQcUXdQ7acBV1xsjTZABZCFVWjRu4FO0vZACJpKjehvGtjsHtFIHvgPJIlngCx2ZArHLnp7O6kRQVXxvZCdLcoVSzyJzWVeLhctfa1zSlNhI8q6ih441EfmBkGxYM1I0mCm6VOwhbdxMzbWPG3JSYosIAPHRSQNRWZAoZBjCKE4m","EAAOZCt57jvjsBOx4vc4qR0ZBZAU1unlZCBnHD58yjyCEgX1Rvy9LuSAiTLUKDsUbyEbOwBbIibNX3DEJbSAG8WMqE4CZBiIl1fO0zDNv6yoJNKNegaWzJPQu7f1mzZCQteoU4TLxcyAwSCO3ZCiKLVaXBP1DlX0nJND6PKabN4x9kdW5qf7zYduTwXzZBcsKYb4i"],

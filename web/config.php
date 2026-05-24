@@ -13,7 +13,7 @@ define('CONFIG_JSON', APP_DIR . '/config.json');
 // Bcrypt hash of the dashboard password.
 // Generate a new hash in PHP with: echo password_hash('yourpassword', PASSWORD_BCRYPT);
 // Default hash below corresponds to: admin123  — CHANGE BEFORE DEPLOYING!
-define('APP_PASSWORD_HASH', '$2y$10$haQO0yMEMI/iyavnU7ftleEYMWkCkugirLXhgbCfVG/1k4cEWiW06');
+define('APP_PASSWORD_HASH', getenv('APP_PASSWORD_HASH') ?: '$2y$10$haQO0yMEMI/iyavnU7ftleEYMWkCkugirLXhgbCfVG/1k4cEWiW06');
 
 // Session name
 define('SESSION_NAME', 'autofb_session');
