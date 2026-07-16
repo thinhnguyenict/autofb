@@ -25,7 +25,9 @@ are never returned by the browser API.
    legacy configuration, repair worker entrypoints, add tests and document the
    migration. This change begins that phase.
 2. **Identity and tenancy**: add users, workspaces, membership roles, sessions,
-   audit logs and PostgreSQL migrations.
+   audit logs and PostgreSQL migrations. The initial API/service contract and local
+   SQLite development store are now implemented; PostgreSQL is the next persistence
+   increment before production use.
 3. **Meta connections**: implement OAuth state/callback handling, encrypted token
    storage, Page discovery/import, token health checks and reconnect flow.
 4. **Content operations**: add media storage, draft posts, Page selection,
@@ -54,3 +56,12 @@ The minimum roles are `owner`, `admin`, `editor`, `publisher`, and `viewer`.
 - A worker publishes asynchronously and records one durable result per attempt.
 - Failed temporary deliveries retry without duplicate posts.
 - A user cannot read another workspace's Pages, media, posts, logs or tokens.
+
+## Implemented OAuth connection slice
+
+The API now generates one-time, ten-minute state values bound to an authorised
+workspace manager. The Meta callback exchanges the code server-side, encrypts the
+returned user/Page tokens with a required Fernet key, stores the connection inside
+the workspace, and exposes page metadata without returning access tokens. A Meta
+app configuration, callback URL, permission/app-review verification and production
+PostgreSQL migration are still required before enabling this flow for users.
