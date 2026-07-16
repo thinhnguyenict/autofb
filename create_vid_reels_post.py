@@ -2,9 +2,9 @@ import os
 import requests
 import logging
 import sys
-import json
 import schedule
 import time
+from autofb.config import ConfigError, load_config
 from utils import random_utils, comment
 
 # Cấu hình thư mục chứa video
@@ -13,16 +13,6 @@ VIDEO_FOLDER = './videos'
 # Graph API v22.0
 API_VERSION = "v22.0"
 GRAPH_URL = f'https://graph.facebook.com/{API_VERSION}'
-
-# Đọc cấu hình từ file config.json
-with open('./config.json', 'r') as f:
-    config = json.load(f)
-
-excel_file = config['excel']['path']
-captions_file = config['excel']['caption_file']
-page_id_list = config['pages']['page_id']
-access_token_list = config['pages']['access_token']
-page_access_tokens = dict(zip(page_id_list, access_token_list))
 
 # Cấu hình logging
 logger = logging.getLogger()
@@ -34,7 +24,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-def upload_reel(page_id, caption, access_token, video_path):
+def upload_reel(page_id, caption, access_token, video_path, excel_file):
     """Đăng Reels Facebook bằng 3 bước upload_phase: start → upload → finish"""
 
     if not os.path.exists(video_path):
@@ -101,14 +91,15 @@ def upload_reel(page_id, caption, access_token, video_path):
 
 def main():
     """Đăng video Reels cho từng fanpage trong danh sách"""
-    for page_id, access_token in page_access_tokens.items():
-        caption = random_utils.random_caption(captions_file)
+    config = load_config()
+    for page_id, access_token in config.pages.page_tokens():
+        caption = random_utils.random_caption(config.excel.caption_file)
         video_file = random_utils.random_file_from_folder(VIDEO_FOLDER)
 
         logger.info(f"Video được chọn: {video_file}")
         logger.info(f"Caption được chọn: {caption}")
 
-        upload_reel(page_id, caption, access_token, video_file)
+        upload_reel(page_id, caption, access_token, video_file, config.excel.path)
 
 
 # Lịch đăng video
@@ -121,7 +112,11 @@ schedule.every().day.at("02:00").do(main)
 
 if __name__ == "__main__":
     logger.info("Bắt đầu đăng Reels Facebook tự động...")
-    main()
+    try:
+        main()
+    except ConfigError as exc:
+        logger.error("Invalid configuration: %s", exc)
+        raise SystemExit(2)
     while True:
         schedule.run_pending()
         time.sleep(60)

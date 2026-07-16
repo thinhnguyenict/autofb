@@ -1,5 +1,6 @@
 import requests
-import logging, sys, json
+import logging, sys
+from autofb.config import ConfigError, load_config
 from utils import random_utils, comment
 import schedule, time 
 
@@ -9,17 +10,6 @@ img_path = './img'
 # API endpoint for creating a new post
 api_version="v25.0"
 api_url = f'https://graph.facebook.com/{api_version}'
-
-# Page ID and token
-# config from json file
-with open('./config.json') as f:
-    config = json.load(f)
-excel_file = config['excel']['path']
-captions_file =  config['excel']['caption_file']
-page_id_list = config['pages']['page_id']
-access_token_list = config['pages']['access_token']
-page_access_tokens = dict(zip(page_id_list, access_token_list))
-
 
 # logging config
 root = logging.getLogger()
@@ -32,7 +22,7 @@ root.addHandler(handler)
 
 
 # create post with photos via graph api
-def create_post(page_id, message, access_token, photo_path):
+def create_post(page_id, message, access_token, photo_path, excel_file):
     post_url = f'{api_url}/{page_id}/photos'
     payload = {
         "access_token": access_token,
@@ -61,11 +51,12 @@ def create_post(page_id, message, access_token, photo_path):
 
 
 def main():
-    for page_id, access_token in page_access_tokens.items():
-        message = random_utils.random_caption(captions_file)
+    config = load_config()
+    for page_id, access_token in config.pages.page_tokens():
+        message = random_utils.random_caption(config.excel.caption_file)
         logging.debug(f"message caption: {message}")
         photo_path = random_utils.random_file_from_folder(img_path)
-        create_post(page_id, message, access_token, photo_path)
+        create_post(page_id, message, access_token, photo_path, config.excel.path)
 schedule.every().day.at("04:00").do(main)
 schedule.every().day.at("08:00").do(main)
 schedule.every().day.at("12:00").do(main)
@@ -77,8 +68,12 @@ schedule.every().day.at("00:00").do(main)
 #schedule.every().day.at("16:10").do(main)
 
 
-if __name__ == '''__main__''':
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except ConfigError as exc:
+        logging.error("Invalid configuration: %s", exc)
+        raise SystemExit(2)
     while True:
         schedule.run_pending()
         time.sleep(1000)  # sleep 1000s, avoid cpu load 
