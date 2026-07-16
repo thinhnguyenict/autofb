@@ -163,6 +163,46 @@ class AutoFBService:
             rows = conn.execute("SELECT id, facebook_page_id, name, connection_id, created_at FROM facebook_pages WHERE workspace_id = ? ORDER BY name", (workspace_id,)).fetchall()
         return [dict(row) for row in rows]
 
+
+    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
+        body = body.strip()
+        if not body:
+            raise ServiceError("Post body is required")
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "editor", "publisher"}))
+            page = conn.execute("SELECT id FROM facebook_pages WHERE id = ? AND workspace_id = ?", (page_id, workspace_id)).fetchone()
+            if page is None:
+                raise ServiceError("Page does not belong to this workspace")
+            timestamp = now(); post = {"id": identifier(), "workspace_id": workspace_id, "page_id": page_id, "body": body, "status": "draft", "created_at": timestamp, "updated_at": timestamp}
+            conn.execute("INSERT INTO posts(id, workspace_id, page_id, body, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (post["id"], workspace_id, page_id, body, "draft", actor_id, timestamp, timestamp))
+            self._audit(conn, workspace_id, actor_id, "post.created", "post", post["id"])
+        return post
+
+    def schedule_post(self, actor_id: str, workspace_id: str, post_id: str, scheduled_at: str, timezone: str) -> dict[str, str]:
+        try:
+            run_at = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ServiceError("scheduled_at must be ISO-8601") from exc
+        if run_at.tzinfo is None or run_at <= datetime.now(UTC):
+            raise ServiceError("scheduled_at must be a future timezone-aware time")
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "editor", "publisher"}))
+            post = conn.execute("SELECT id FROM posts WHERE id = ? AND workspace_id = ?", (post_id, workspace_id)).fetchone()
+            if post is None:
+                raise ServiceError("Post does not belong to this workspace")
+            timestamp = now(); schedule_id = identifier(); job_id = identifier()
+            conn.execute("INSERT INTO schedules(id, post_id, scheduled_at, timezone, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(post_id) DO UPDATE SET scheduled_at = excluded.scheduled_at, timezone = excluded.timezone", (schedule_id, post_id, scheduled_at, timezone, timestamp))
+            conn.execute("UPDATE posts SET status = 'scheduled', updated_at = ? WHERE id = ?", (timestamp, post_id))
+            conn.execute("INSERT INTO publish_jobs(id, post_id, status, run_at, attempts, created_at, updated_at) VALUES (?, ?, 'queued', ?, 0, ?, ?)", (job_id, post_id, scheduled_at, timestamp, timestamp))
+            self._audit(conn, workspace_id, actor_id, "post.scheduled", "post", post_id)
+        return {"id": schedule_id, "post_id": post_id, "scheduled_at": scheduled_at, "timezone": timezone, "job_id": job_id}
+
+    def list_posts(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id WHERE posts.workspace_id = ? ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
     def _require_role(self, conn: Any, user_id: str, workspace_id: str, allowed: frozenset[str]) -> str:
         row = conn.execute("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", (workspace_id, user_id)).fetchone()
         if row is None or row["role"] not in allowed:

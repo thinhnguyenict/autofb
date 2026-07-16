@@ -37,6 +37,16 @@ class AddMemberRequest(BaseModel):
     role: str
 
 
+class PostRequest(BaseModel):
+    page_id: str
+    body: str = Field(min_length=1, max_length=5000)
+
+
+class ScheduleRequest(BaseModel):
+    scheduled_at: str
+    timezone: str = Field(min_length=1, max_length=64)
+
+
 @lru_cache
 def service() -> AutoFBService:
     database = Database(Path(os.environ.get("AUTOFB_DATABASE_PATH", "autofb.db")))
@@ -137,3 +147,18 @@ def facebook_callback(code: str = "", state: str = "", error: str = "") -> dict[
 @app.get("/api/v1/workspaces/{workspace_id}/facebook/pages")
 def facebook_pages(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
     return operation(lambda: service().list_facebook_pages(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/posts")
+def posts(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_posts(user["id"], workspace_id))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/posts", status_code=status.HTTP_201_CREATED)
+def create_post(workspace_id: str, payload: PostRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)
+def schedule_post(workspace_id: str, post_id: str, payload: ScheduleRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    return operation(lambda: service().schedule_post(user["id"], workspace_id, post_id, payload.scheduled_at, payload.timezone))

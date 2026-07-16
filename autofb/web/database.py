@@ -78,6 +78,34 @@ CREATE TABLE IF NOT EXISTS facebook_pages (
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, facebook_page_id)
 );
+CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    page_id TEXT NOT NULL REFERENCES facebook_pages(id) ON DELETE RESTRICT,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('draft', 'scheduled', 'queued', 'published', 'failed')),
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL UNIQUE REFERENCES posts(id) ON DELETE CASCADE,
+    scheduled_at TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS publish_jobs (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'succeeded', 'failed')),
+    run_at TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS publish_jobs_ready ON publish_jobs(status, run_at);
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
 """
 

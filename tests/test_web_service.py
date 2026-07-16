@@ -83,3 +83,20 @@ class FacebookPageStorageTests(unittest.TestCase):
         pages = self.service.list_facebook_pages(self.owner["id"], self.workspace["id"])
         self.assertEqual(pages[0]["facebook_page_id"], "page-1")
         self.assertNotIn("encrypted_access_token", pages[0])
+
+
+class ContentSchedulingTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(); self.addCleanup(self.directory.cleanup)
+        database = Database(Path(self.directory.name) / "autofb.db"); database.initialize()
+        self.service = AutoFBService(database)
+        self.owner = self.service.register("owner@example.com", "a-very-strong-password", "Owner")
+        self.workspace = self.service.create_workspace(self.owner["id"], "Garden team")
+        self.connection = self.service.save_facebook_connection(self.workspace["id"], self.owner["id"], "meta-user", "Meta", "enc-user", None, [{"facebook_page_id": "p1", "name": "Garden", "encrypted_access_token": "enc-page"}])
+        self.page = self.service.list_facebook_pages(self.owner["id"], self.workspace["id"])[0]
+
+    def test_create_and_schedule_post_creates_durable_job(self):
+        post = self.service.create_post(self.owner["id"], self.workspace["id"], self.page["id"], "Hello Garden")
+        scheduled = self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
+        self.assertTrue(scheduled["job_id"])
+        self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["status"], "scheduled")
