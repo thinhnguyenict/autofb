@@ -1,2 +1,10 @@
-__pycache__/
+!*.example
+*.log
 *.pyc
+.env
+.env.*
+__pycache__/
+config.json
+output/
+
+autofb.db

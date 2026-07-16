@@ -13,3 +13,27 @@ services:
       - ./videos:/app/videos
       - ./output:/app/output
     restart: unless-stopped
+
+  autofb-worker:
+    build: .
+    environment:
+      AUTOFB_SERVICE: worker
+      AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+    volumes:
+      - autofb_api_data:/var/lib/autofb
+    restart: "no"
+
+  autofb-api:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      AUTOFB_SERVICE: api
+      PORT: "8001"
+      AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+    volumes:
+      - autofb_api_data:/var/lib/autofb
+    restart: unless-stopped
+
+volumes:
+  autofb_api_data:
