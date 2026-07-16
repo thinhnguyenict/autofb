@@ -114,3 +114,18 @@ class PublishWorkerTests(ContentSchedulingTests):
         self.assertEqual(worker.run_once(), 1)
         self.assertEqual(calls[0][1], "plain-token")
         self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["status"], "published")
+
+
+class PublishRetryTests(PublishWorkerTests):
+    def test_transient_failure_requeues_job_with_error(self):
+        post = self.service.create_post(self.owner["id"], self.workspace["id"], self.page["id"], "Hello")
+        self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
+        with self.service.database.connect() as conn:
+            conn.execute("UPDATE publish_jobs SET run_at = '2000-01-01T00:00:00+00:00'")
+        worker = PublishWorker(self.service.database, publisher=lambda *_: (_ for _ in ()).throw(RuntimeError("temporary")), decryptor=lambda _: "token")
+        worker.run_once()
+        with self.service.database.connect() as conn:
+            job = conn.execute("SELECT status, attempts, last_error FROM publish_jobs").fetchone()
+        self.assertEqual(job["status"], "queued")
+        self.assertEqual(job["attempts"], 1)
+        self.assertEqual(job["last_error"], "temporary")
