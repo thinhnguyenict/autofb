@@ -1,5 +1,6 @@
 import requests
-import logging, sys, json
+import logging, sys
+from autofb.config import ConfigError, load_config
 from utils import random_utils, comment
 import schedule, time
 
@@ -8,15 +9,6 @@ video_path = './videos'
 # API endpoint cho Facebook Graph API
 api_version = "v22.0"
 api_url = f'https://graph.facebook.com/{api_version}'
-
-# Đọc cấu hình từ file JSON
-with open('./config.json') as f:
-    config = json.load(f)
-excel_file = config['excel']['path']
-captions_file = config['excel']['caption_file']
-page_id_list = config['pages']['page_id']
-access_token_list = config['pages']['access_token']
-page_access_tokens = dict(zip(page_id_list, access_token_list))
 
 # Cấu hình logging
 root = logging.getLogger()
@@ -28,17 +20,17 @@ handler.setFormatter(formatter)
 root.addHandler(handler)
 
 # Tải lên video reels thông qua Graph API
-def upload_video(page_id, message, access_token, post_url, video_file_path):
+def upload_video(page_id, message, access_token, post_url, video_file_path, excel_file):
     post_url = f'{post_url}/{page_id}/videos'
     payload = {
         "access_token": access_token,
         "description": message  # Mô tả của video
     }
-    files = {
-        'source': open(video_file_path, 'rb')  # Tải file video
-    }
     try:
-        response = requests.post(post_url, data=payload, files=files).json()
+        with open(video_file_path, 'rb') as video:
+            response = requests.post(
+                post_url, data=payload, files={'source': video}, timeout=120
+            ).json()
         logging.debug(response)
         if 'id' in response:
             logging.info(f"Success - VideoID: {response['id']}")
@@ -57,11 +49,12 @@ def upload_video(page_id, message, access_token, post_url, video_file_path):
 
 # Hàm chính
 def main():
-    for page_id, access_token in page_access_tokens.items():
-        message = random_utils.random_caption(captions_file)
+    config = load_config()
+    for page_id, access_token in config.pages.page_tokens():
+        message = random_utils.random_caption(config.excel.caption_file)
         logging.debug(f"Video caption: {message}")
         video_file_path = random_utils.random_file_from_folder(video_path)
-        upload_video(page_id, message, access_token, api_url, video_file_path)
+        upload_video(page_id, message, access_token, api_url, video_file_path, config.excel.path)
 
 # Lập lịch tự động đăng video reels
 schedule.every().day.at("06:00").do(main)
@@ -71,8 +64,12 @@ schedule.every().day.at("18:00").do(main)
 schedule.every().day.at("22:00").do(main)
 schedule.every().day.at("02:00").do(main)
 
-if __name__ == '''__main__''':
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except ConfigError as exc:
+        logging.error("Invalid configuration: %s", exc)
+        raise SystemExit(2)
     while True:
         schedule.run_pending()
         time.sleep(1000)  # sleep 1000s, tránh CPU quá tải

@@ -1,26 +1,25 @@
 {
-    "excel": {
-      "path": "./data.xlsx",
-      "caption_file": "./caption.xlsx"
-    },
-    "pages": {
-        "access_token": ["EAAOZCt57jvjsBOZCabpiKsseXAQcUXdQ7acBV1xsjTZABZCFVWjRu4FO0vZACJpKjehvGtjsHtFIHvgPJIlngCx2ZArHLnp7O6kRQVXxvZCdLcoVSzyJzWVeLhctfa1zSlNhI8q6ih441EfmBkGxYM1I0mCm6VOwhbdxMzbWPG3JSYosIAPHRSQNRWZAoZBjCKE4m","EAAOZCt57jvjsBOx4vc4qR0ZBZAU1unlZCBnHD58yjyCEgX1Rvy9LuSAiTLUKDsUbyEbOwBbIibNX3DEJbSAG8WMqE4CZBiIl1fO0zDNv6yoJNKNegaWzJPQu7f1mzZCQteoU4TLxcyAwSCO3ZCiKLVaXBP1DlX0nJND6PKabN4x9kdW5qf7zYduTwXzZBcsKYb4i"],
-        "page_name": ["Azgeek", "Lady Leak"],
-        "page_id": ["471948829668444", "1731609010419128"],
-        "act_id": "act_393395857385028"
-    },
-    "token_renew": {
-        "app_id": "",
-        "app_secret": "",
-        "short_token": "",
-        "short_token_expires_at": 0,
-        "long_user_token": "",
-        "long_user_token_expires_at": 0,
-        "auto_renew_enabled": true,
-        "notify_email": "",
-        "last_renew_at": "",
-        "last_error": "",
-        "last_error_at": ""
-    }
+  "excel": {
+    "path": "./data.xlsx",
+    "caption_file": "./caption.xlsx"
+  },
+  "pages": {
+    "access_token": [],
+    "page_name": [],
+    "page_id": [],
+    "act_id": ""
+  },
+  "token_renew": {
+    "app_id": "",
+    "app_secret": "",
+    "short_token": "",
+    "short_token_expires_at": 0,
+    "long_user_token": "",
+    "long_user_token_expires_at": 0,
+    "auto_renew_enabled": false,
+    "notify_email": "",
+    "last_renew_at": "",
+    "last_error": "",
+    "last_error_at": ""
+  }
 }
-  
