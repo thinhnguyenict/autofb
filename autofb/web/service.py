@@ -164,6 +164,25 @@ class AutoFBService:
         return [dict(row) for row in rows]
 
 
+
+    def connection_health(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, display_name, expires_at, created_at FROM oauth_connections WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_notifications(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, type, message, read_at, created_at FROM notifications WHERE workspace_id = ? AND user_id = ? ORDER BY created_at DESC", (workspace_id, actor_id)).fetchall()
+        return [dict(row) for row in rows]
+
+    def notify_workspace(self, workspace_id: str, kind: str, message: str) -> None:
+        with self.database.connect() as conn:
+            members = conn.execute("SELECT user_id FROM workspace_members WHERE workspace_id = ?", (workspace_id,)).fetchall()
+            for member in members:
+                conn.execute("INSERT INTO notifications(id, workspace_id, user_id, type, message, created_at) VALUES (?, ?, ?, ?, ?, ?)", (identifier(), workspace_id, member["user_id"], kind, message, now()))
+
     def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
         body = body.strip()
         if not body:

@@ -78,6 +78,15 @@ CREATE TABLE IF NOT EXISTS facebook_pages (
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, facebook_page_id)
 );
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    read_at TEXT,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS posts (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

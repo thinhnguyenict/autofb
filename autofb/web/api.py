@@ -171,3 +171,13 @@ def create_post(workspace_id: str, payload: PostRequest, user: dict[str, str] = 
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)
 def schedule_post(workspace_id: str, post_id: str, payload: ScheduleRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     return operation(lambda: service().schedule_post(user["id"], workspace_id, post_id, payload.scheduled_at, payload.timezone))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/facebook/connections")
+def facebook_connections(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().connection_health(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/notifications")
+def notifications(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_notifications(user["id"], workspace_id))

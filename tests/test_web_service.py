@@ -129,3 +129,12 @@ class PublishRetryTests(PublishWorkerTests):
         self.assertEqual(job["status"], "queued")
         self.assertEqual(job["attempts"], 1)
         self.assertEqual(job["last_error"], "temporary")
+
+class OperationalVisibilityTests(FacebookPageStorageTests):
+    def test_workspace_connection_health_and_notifications_are_scoped(self):
+        connection = self.service.save_facebook_connection(
+            self.workspace["id"], self.owner["id"], "meta-user", "Meta User", "enc", "2030-01-01T00:00:00+00:00", []
+        )
+        self.service.notify_workspace(self.workspace["id"], "token_expiring", "Reconnect Meta")
+        self.assertEqual(self.service.connection_health(self.owner["id"], self.workspace["id"])[0]["id"], connection["id"])
+        self.assertEqual(self.service.list_notifications(self.owner["id"], self.workspace["id"])[0]["type"], "token_expiring")
