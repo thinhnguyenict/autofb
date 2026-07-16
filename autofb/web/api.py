@@ -7,6 +7,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -78,6 +80,13 @@ def meta_oauth() -> MetaOAuth:
 
 
 app = FastAPI(title="AutoFB API", version="0.1.0")
+STATIC_DIR = Path(__file__).with_name("static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def dashboard() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/healthz")
