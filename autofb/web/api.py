@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from .database import Database
+from .oauth import MetaOAuth, MetaOAuthSettings, OAuthError
 from .service import AutoFBService, ServiceError
 
 bearer = HTTPBearer(auto_error=False)
@@ -58,6 +60,13 @@ def operation(fn):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
+def meta_oauth() -> MetaOAuth:
+    try:
+        return MetaOAuth(MetaOAuthSettings.from_environment())
+    except OAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
 app = FastAPI(title="AutoFB API", version="0.1.0")
 
 
@@ -102,3 +111,29 @@ def create_workspace(payload: WorkspaceRequest, user: dict[str, str] = Depends(c
 @app.put("/api/v1/workspaces/{workspace_id}/members")
 def add_member(workspace_id: str, payload: AddMemberRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     return operation(lambda: service().add_member(user["id"], workspace_id, payload.email, payload.role))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/facebook/connect")
+def start_facebook_connect(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    state = operation(lambda: service().create_oauth_state(user["id"], workspace_id))
+    return {"authorization_url": meta_oauth().authorization_url(state)}
+
+
+@app.get("/api/v1/oauth/facebook/callback")
+def facebook_callback(code: str = "", state: str = "", error: str = "") -> dict[str, str]:
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Meta authorization failed: {error}")
+    if not code or not state:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OAuth code and state are required")
+    context = operation(lambda: service().consume_oauth_state(state))
+    try:
+        provider_user_id, display_name, pages, encrypted_token, expires_in = meta_oauth().exchange_and_discover(code)
+    except OAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    expires_at = (datetime.now(UTC) + timedelta(seconds=expires_in)).isoformat() if expires_in else None
+    return operation(lambda: service().save_facebook_connection(context["workspace_id"], context["actor_id"], provider_user_id, display_name, encrypted_token, expires_at, pages))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/facebook/pages")
+def facebook_pages(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_facebook_pages(user["id"], workspace_id))

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+import secrets
+from hashlib import sha256
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -114,6 +116,52 @@ class AutoFBService:
             )
             self._audit(conn, workspace_id, actor_id, "workspace.member_upserted", "user", user["id"])
             return {"id": user["id"], "email": user["email"], "display_name": user["display_name"], "role": role}
+
+
+    def create_oauth_state(self, actor_id: str, workspace_id: str) -> str:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, MANAGE_MEMBERS)
+            state = secrets.token_urlsafe(32)
+            conn.execute("DELETE FROM oauth_states WHERE expires_at <= ?", (now(),))
+            conn.execute(
+                "INSERT INTO oauth_states(state_hash, workspace_id, actor_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                (sha256(state.encode()).hexdigest(), workspace_id, actor_id, (datetime.now(UTC) + timedelta(minutes=10)).isoformat(), now()),
+            )
+            return state
+
+    def consume_oauth_state(self, state: str) -> dict[str, str]:
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT workspace_id, actor_id, expires_at FROM oauth_states WHERE state_hash = ?", (sha256(state.encode()).hexdigest(),)).fetchone()
+            conn.execute("DELETE FROM oauth_states WHERE state_hash = ?", (sha256(state.encode()).hexdigest(),))
+            if row is None or row["expires_at"] <= now():
+                raise ServiceError("OAuth state is invalid or expired")
+            return {"workspace_id": row["workspace_id"], "actor_id": row["actor_id"]}
+
+    def save_facebook_connection(self, workspace_id: str, actor_id: str, provider_user_id: str, display_name: str, encrypted_access_token: str, expires_at: str | None, pages: list[dict[str, str]]) -> dict[str, str]:
+        if not provider_user_id:
+            raise ServiceError("Meta did not return a user identity")
+        with self.database.connect() as conn:
+            connection = conn.execute("SELECT id FROM oauth_connections WHERE workspace_id = ? AND provider_user_id = ?", (workspace_id, provider_user_id)).fetchone()
+            connection_id = connection["id"] if connection else identifier()
+            conn.execute(
+                "INSERT INTO oauth_connections(id, workspace_id, provider_user_id, display_name, encrypted_access_token, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(workspace_id, provider_user_id) DO UPDATE SET display_name = excluded.display_name, encrypted_access_token = excluded.encrypted_access_token, expires_at = excluded.expires_at",
+                (connection_id, workspace_id, provider_user_id, display_name, encrypted_access_token, expires_at, now()),
+            )
+            for page in pages:
+                conn.execute(
+                    "INSERT INTO facebook_pages(id, workspace_id, connection_id, facebook_page_id, name, encrypted_access_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(workspace_id, facebook_page_id) DO UPDATE SET connection_id = excluded.connection_id, name = excluded.name, encrypted_access_token = excluded.encrypted_access_token",
+                    (identifier(), workspace_id, connection_id, page["facebook_page_id"], page["name"], page["encrypted_access_token"], now()),
+                )
+            self._audit(conn, workspace_id, actor_id, "facebook.connection_saved", "oauth_connection", connection_id)
+        return {"id": connection_id, "display_name": display_name, "pages_imported": str(len(pages))}
+
+    def list_facebook_pages(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, facebook_page_id, name, connection_id, created_at FROM facebook_pages WHERE workspace_id = ? ORDER BY name", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
 
     def _require_role(self, conn: Any, user_id: str, workspace_id: str, allowed: frozenset[str]) -> str:
         row = conn.execute("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", (workspace_id, user_id)).fetchone()

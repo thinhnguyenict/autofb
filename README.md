@@ -63,3 +63,20 @@ Available endpoints:
 
 Authenticated requests use `Authorization: Bearer <access_token>`. Tokens are
 opaque random values; only their SHA-256 digest is stored in the database.
+
+## Meta OAuth configuration
+
+The API uses the official server-side OAuth callback flow; it never accepts a
+Facebook password. Before enabling the connect endpoint, configure these API
+container environment variables with values from the Meta app configuration:
+
+```text
+META_APP_ID
+META_APP_SECRET
+META_REDIRECT_URI
+AUTOFB_TOKEN_ENCRYPTION_KEY
+```
+
+`AUTOFB_TOKEN_ENCRYPTION_KEY` must be a Fernet key. The callback exchanges the
+one-time OAuth code server-side, encrypts user/Page access tokens before storage,
+and imports only Pages returned by Meta for the authorized connection.

@@ -51,6 +51,33 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     entity_id TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS oauth_states (
+    state_hash TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_connections (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    provider_user_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    encrypted_access_token TEXT NOT NULL,
+    expires_at TEXT,
+    created_at TEXT NOT NULL,
+    UNIQUE(workspace_id, provider_user_id)
+);
+CREATE TABLE IF NOT EXISTS facebook_pages (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    connection_id TEXT NOT NULL REFERENCES oauth_connections(id) ON DELETE CASCADE,
+    facebook_page_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    encrypted_access_token TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(workspace_id, facebook_page_id)
+);
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
 """
 

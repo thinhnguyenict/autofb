@@ -56,3 +56,12 @@ The minimum roles are `owner`, `admin`, `editor`, `publisher`, and `viewer`.
 - A worker publishes asynchronously and records one durable result per attempt.
 - Failed temporary deliveries retry without duplicate posts.
 - A user cannot read another workspace's Pages, media, posts, logs or tokens.
+
+## Implemented OAuth connection slice
+
+The API now generates one-time, ten-minute state values bound to an authorised
+workspace manager. The Meta callback exchanges the code server-side, encrypts the
+returned user/Page tokens with a required Fernet key, stores the connection inside
+the workspace, and exposes page metadata without returning access tokens. A Meta
+app configuration, callback URL, permission/app-review verification and production
+PostgreSQL migration are still required before enabling this flow for users.
