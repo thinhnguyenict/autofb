@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -82,6 +83,19 @@ def meta_oauth() -> MetaOAuth:
 
 
 app = FastAPI(title="AutoFB API", version="0.1.0")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "public, max-age=3600"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 STATIC_DIR = Path(__file__).with_name("static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
