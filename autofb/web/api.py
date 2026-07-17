@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -181,3 +183,22 @@ def facebook_connections(workspace_id: str, user: dict[str, str] = Depends(curre
 @app.get("/api/v1/workspaces/{workspace_id}/notifications")
 def notifications(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
     return operation(lambda: service().list_notifications(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/media")
+def media(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_media(user["id"], workspace_id))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/media", status_code=status.HTTP_201_CREATED)
+def upload_media(workspace_id: str, file: UploadFile, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    allowed = {"image/jpeg", "image/png", "video/mp4"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and MP4 media are supported")
+    directory = Path(os.environ.get("AUTOFB_MEDIA_DIR", "media")) / workspace_id
+    directory.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename or "upload").name
+    storage_path = directory / f"{uuid.uuid4()}-{safe_name}"
+    with storage_path.open("wb") as target:
+        shutil.copyfileobj(file.file, target)
+    return operation(lambda: service().register_media(user["id"], workspace_id, safe_name, str(storage_path), file.content_type or "application/octet-stream", storage_path.stat().st_size))

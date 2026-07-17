@@ -78,6 +78,16 @@ CREATE TABLE IF NOT EXISTS facebook_pages (
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, facebook_page_id)
 );
+CREATE TABLE IF NOT EXISTS media_assets (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,

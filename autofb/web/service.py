@@ -165,6 +165,23 @@ class AutoFBService:
 
 
 
+
+    def register_media(self, actor_id: str, workspace_id: str, filename: str, storage_path: str, content_type: str, size_bytes: int) -> dict[str, str]:
+        if not filename or size_bytes < 1:
+            raise ServiceError("A non-empty media file is required")
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "editor", "publisher"}))
+            media = {"id": identifier(), "workspace_id": workspace_id, "filename": filename, "storage_path": storage_path, "content_type": content_type, "size_bytes": str(size_bytes), "created_at": now()}
+            conn.execute("INSERT INTO media_assets(id, workspace_id, filename, storage_path, content_type, size_bytes, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (media["id"], workspace_id, filename, storage_path, content_type, size_bytes, actor_id, media["created_at"]))
+            self._audit(conn, workspace_id, actor_id, "media.uploaded", "media_asset", media["id"])
+        return media
+
+    def list_media(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, filename, content_type, size_bytes, created_at FROM media_assets WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
     def connection_health(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
         with self.database.connect() as conn:
             self._require_role(conn, actor_id, workspace_id, ROLES)

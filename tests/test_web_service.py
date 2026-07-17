@@ -138,3 +138,10 @@ class OperationalVisibilityTests(FacebookPageStorageTests):
         self.service.notify_workspace(self.workspace["id"], "token_expiring", "Reconnect Meta")
         self.assertEqual(self.service.connection_health(self.owner["id"], self.workspace["id"])[0]["id"], connection["id"])
         self.assertEqual(self.service.list_notifications(self.owner["id"], self.workspace["id"])[0]["type"], "token_expiring")
+
+class MediaLibraryTests(FacebookPageStorageTests):
+    def test_registers_and_scopes_media_metadata(self):
+        asset = self.service.register_media(self.owner["id"], self.workspace["id"], "rose.jpg", "/media/rose.jpg", "image/jpeg", 42)
+        assets = self.service.list_media(self.owner["id"], self.workspace["id"])
+        self.assertEqual(assets[0]["id"], asset["id"])
+        self.assertNotIn("storage_path", assets[0])
