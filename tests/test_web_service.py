@@ -145,3 +145,13 @@ class MediaLibraryTests(FacebookPageStorageTests):
         assets = self.service.list_media(self.owner["id"], self.workspace["id"])
         self.assertEqual(assets[0]["id"], asset["id"])
         self.assertNotIn("storage_path", assets[0])
+
+class PostMediaTests(FacebookPageStorageTests):
+    def test_post_can_attach_own_workspace_media(self):
+        media = self.service.register_media(self.owner["id"], self.workspace["id"], "rose.jpg", "/media/rose.jpg", "image/jpeg", 42)
+        self.service.save_facebook_connection(self.workspace["id"], self.owner["id"], "meta-user", "Meta", "enc-user", None, [{"facebook_page_id": "p1", "name": "Garden", "encrypted_access_token": "enc-page"}])
+        page = self.service.list_facebook_pages(self.owner["id"], self.workspace["id"])[0]
+        post = self.service.create_post(self.owner["id"], self.workspace["id"], page["id"], "Hello", [media["id"]])
+        with self.service.database.connect() as conn:
+            attached = conn.execute("SELECT media_asset_id FROM post_media WHERE post_id = ?", (post["id"],)).fetchone()
+        self.assertEqual(attached["media_asset_id"], media["id"])
