@@ -200,7 +200,7 @@ class AutoFBService:
             for member in members:
                 conn.execute("INSERT INTO notifications(id, workspace_id, user_id, type, message, created_at) VALUES (?, ?, ?, ?, ?, ?)", (identifier(), workspace_id, member["user_id"], kind, message, now()))
 
-    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
+    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str, media_ids: list[str] | None = None) -> dict[str, str]:
         body = body.strip()
         if not body:
             raise ServiceError("Post body is required")
@@ -211,6 +211,11 @@ class AutoFBService:
                 raise ServiceError("Page does not belong to this workspace")
             timestamp = now(); post = {"id": identifier(), "workspace_id": workspace_id, "page_id": page_id, "body": body, "status": "draft", "created_at": timestamp, "updated_at": timestamp}
             conn.execute("INSERT INTO posts(id, workspace_id, page_id, body, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (post["id"], workspace_id, page_id, body, "draft", actor_id, timestamp, timestamp))
+            for sort_order, media_id in enumerate(media_ids or []):
+                media = conn.execute("SELECT id FROM media_assets WHERE id = ? AND workspace_id = ?", (media_id, workspace_id)).fetchone()
+                if media is None:
+                    raise ServiceError("Media does not belong to this workspace")
+                conn.execute("INSERT INTO post_media(post_id, media_asset_id, sort_order) VALUES (?, ?, ?)", (post["id"], media_id, sort_order))
             self._audit(conn, workspace_id, actor_id, "post.created", "post", post["id"])
         return post
 

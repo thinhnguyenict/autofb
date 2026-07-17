@@ -45,6 +45,7 @@ class AddMemberRequest(BaseModel):
 class PostRequest(BaseModel):
     page_id: str
     body: str = Field(min_length=1, max_length=5000)
+    media_ids: list[str] = Field(default_factory=list)
 
 
 class ScheduleRequest(BaseModel):
@@ -181,7 +182,7 @@ def posts(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> li
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts", status_code=status.HTTP_201_CREATED)
 def create_post(workspace_id: str, payload: PostRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
-    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body))
+    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body, payload.media_ids))
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)

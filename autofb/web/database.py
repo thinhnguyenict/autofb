@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS posts (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS post_media (
+    post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    media_asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE RESTRICT,
+    sort_order INTEGER NOT NULL,
+    PRIMARY KEY (post_id, media_asset_id)
+);
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     post_id TEXT NOT NULL UNIQUE REFERENCES posts(id) ON DELETE CASCADE,
