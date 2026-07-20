@@ -120,6 +120,24 @@ class PublishWorkerTests(ContentSchedulingTests):
         self.assertEqual(calls[0][1], "plain-token")
         self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["status"], "published")
 
+    def test_worker_passes_attached_media_to_media_publisher(self):
+        media = self.service.register_media(self.owner["id"], self.workspace["id"], "rose.jpg", "/media/rose.jpg", "image/jpeg", 42)
+        post = self.service.create_post(self.owner["id"], self.workspace["id"], self.page["id"], "Hello with media", [media["id"]])
+        self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
+        with self.service.database.connect() as conn:
+            conn.execute("UPDATE publish_jobs SET run_at = '2000-01-01T00:00:00+00:00'")
+        calls = []
+        worker = PublishWorker(
+            self.service.database,
+            publisher=lambda *_: "text-remote-id",
+            media_publisher=lambda page, token, body, attachments: calls.append((page, token, body, attachments)) or "media-remote-id",
+            decryptor=lambda token: "plain-token",
+        )
+        self.assertEqual(worker.run_once(), 1)
+        self.assertEqual(calls[0][0], "p1")
+        self.assertEqual(calls[0][1], "plain-token")
+        self.assertEqual(calls[0][3][0]["filename"], "rose.jpg")
+
 
 class PublishRetryTests(PublishWorkerTests):
     def test_transient_failure_requeues_job_with_error(self):
