@@ -47,6 +47,15 @@ so the command still validates core behavior in dependency-restricted containers
 dashboard to `output/dashboard.png` by default and writes a dependency-free PNG
 fallback artifact when Playwright is unavailable.
 
+Common commands are also available as Make targets:
+
+```bash
+make test
+make check
+make smoke
+make screenshot
+```
+
 ## Legacy configuration contract
 
 `config.json` contains Excel locations and arrays for Page IDs, Page names and
