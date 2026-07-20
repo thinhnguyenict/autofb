@@ -1,3 +1,5 @@
+import os
+
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import requests, base64
 from utils import random_utils
@@ -378,7 +380,9 @@ def image_to_base64(image_path):
 
 def upload_picture(img_file):
     img_base64 = image_to_base64(img_file)
-    imgbb_api_key = "90b27c6e8d0692d63a779b64347794d3"
+    imgbb_api_key = os.environ.get("IMGBB_API_KEY")
+    if not imgbb_api_key:
+        raise RuntimeError("IMGBB_API_KEY must be configured to upload to imgbb")
     api_url = "https://api.imgbb.com/1/upload"
 
     payload = {
@@ -393,16 +397,20 @@ def upload_picture(img_file):
 
 def upload_self_hosted_picture(img_file):
     tmp_img_name = str(random_utils.random_img_name())
-    url = "http://5.78.43.250:8080/upload-image/"
-    payload={}
-    files=[
-    ('file',(f"{tmp_img_name}.jpg",open(img_file,'rb'),'image/jpeg'))
-    ]
+    url = os.environ.get("AUTOFB_IMAGE_UPLOAD_URL")
+    token = os.environ.get("AUTOFB_IMAGE_UPLOAD_TOKEN")
+    if not url or not token:
+        raise RuntimeError("AUTOFB_IMAGE_UPLOAD_URL and AUTOFB_IMAGE_UPLOAD_TOKEN must be configured")
     headers = {
-    'Accept': 'application/json',
-    'x-token': 'fake-tokenss'
+        'Accept': 'application/json',
+        'x-token': token,
     }
-
-    response = requests.request("POST", url, headers=headers, data=payload, files=files)
-    # print(response.json())
+    with open(img_file, 'rb') as image:
+        response = requests.post(
+            url,
+            headers=headers,
+            files={'file': (f"{tmp_img_name}.jpg", image, 'image/jpeg')},
+            timeout=60,
+        )
+    response.raise_for_status()
     return response.json()['image_url']
