@@ -28,6 +28,21 @@ workspace membership foundations; Meta OAuth, Page discovery, content scheduling
 and workers are the following delivery slices. Publishing workers must be started
 separately until the queue-based application migration is complete.
 
+## FastAPI and Playwright developer tools
+
+The repository includes small tools for local API and dashboard verification:
+
+```bash
+python tools/fastapi_smoke.py
+python -m playwright install chromium
+AUTOFB_DASHBOARD_URL=http://127.0.0.1:8001 python tools/capture_dashboard.py
+```
+
+`tools/fastapi_smoke.py` boots the FastAPI app through `TestClient` against a
+temporary SQLite database, then verifies health, registration, login, workspace
+creation and member listing. `tools/capture_dashboard.py` uses Playwright to save
+a screenshot of a running dashboard to `output/dashboard.png` by default.
+
 ## Legacy configuration contract
 
 `config.json` contains Excel locations and arrays for Page IDs, Page names and
