@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import os
 import tempfile
+import importlib.util
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+if importlib.util.find_spec("fastapi") is None:
+    raise SystemExit("Missing dependency: fastapi. Run `python -m pip install -r reqs.txt` before this smoke test.")
 
+from fastapi.testclient import TestClient
 from autofb.web.api import app, service
 
 

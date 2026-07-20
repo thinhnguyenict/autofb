@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import os
+import importlib.util
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+if importlib.util.find_spec("playwright") is None:
+    raise SystemExit(
+        "Missing dependency: playwright. Run `python -m pip install -r reqs.txt` and `python -m playwright install chromium`."
+    )
 
+from playwright.sync_api import sync_playwright
 
 def main() -> None:
     url = os.environ.get("AUTOFB_DASHBOARD_URL", "http://127.0.0.1:8001")
