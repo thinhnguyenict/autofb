@@ -200,6 +200,11 @@ def notifications(workspace_id: str, user: dict[str, str] = Depends(current_user
     return operation(lambda: service().list_notifications(user["id"], workspace_id))
 
 
+@app.get("/api/v1/workspaces/{workspace_id}/audit-logs")
+def audit_logs(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_audit_logs(user["id"], workspace_id))
+
+
 @app.get("/api/v1/workspaces/{workspace_id}/media")
 def media(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
     return operation(lambda: service().list_media(user["id"], workspace_id))

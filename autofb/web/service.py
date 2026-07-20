@@ -194,6 +194,20 @@ class AutoFBService:
             rows = conn.execute("SELECT id, type, message, read_at, created_at FROM notifications WHERE workspace_id = ? AND user_id = ? ORDER BY created_at DESC", (workspace_id, actor_id)).fetchall()
         return [dict(row) for row in rows]
 
+    def list_audit_logs(self, actor_id: str, workspace_id: str, limit: int = 25) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin"}))
+            rows = conn.execute(
+                """SELECT audit_logs.id, audit_logs.action, audit_logs.entity_type, audit_logs.entity_id,
+                          audit_logs.created_at, users.display_name AS actor_name
+                   FROM audit_logs LEFT JOIN users ON users.id = audit_logs.actor_id
+                   WHERE audit_logs.workspace_id = ?
+                   ORDER BY audit_logs.created_at DESC
+                   LIMIT ?""",
+                (workspace_id, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def notify_workspace(self, workspace_id: str, kind: str, message: str) -> None:
         with self.database.connect() as conn:
             members = conn.execute("SELECT user_id FROM workspace_members WHERE workspace_id = ?", (workspace_id,)).fetchall()

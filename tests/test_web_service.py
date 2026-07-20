@@ -162,6 +162,15 @@ class OperationalVisibilityTests(FacebookPageStorageTests):
         self.assertEqual(self.service.connection_health(self.owner["id"], self.workspace["id"])[0]["id"], connection["id"])
         self.assertEqual(self.service.list_notifications(self.owner["id"], self.workspace["id"])[0]["type"], "token_expiring")
 
+    def test_owner_can_view_audit_logs_but_viewer_cannot(self):
+        other = self.service.register("other@example.com", "another-strong-password", "Other")
+        self.service.add_member(self.owner["id"], self.workspace["id"], "other@example.com", "viewer")
+        logs = self.service.list_audit_logs(self.owner["id"], self.workspace["id"])
+        self.assertEqual(logs[0]["action"], "workspace.member_upserted")
+        self.assertEqual(logs[0]["actor_name"], "Owner")
+        with self.assertRaisesRegex(ServiceError, "permission"):
+            self.service.list_audit_logs(other["id"], self.workspace["id"])
+
 class MediaLibraryTests(FacebookPageStorageTests):
     def test_registers_and_scopes_media_metadata(self):
         asset = self.service.register_media(self.owner["id"], self.workspace["id"], "rose.jpg", "/media/rose.jpg", "image/jpeg", 42)

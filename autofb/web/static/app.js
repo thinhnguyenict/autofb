@@ -36,6 +36,14 @@ function selectedMediaIds() {
   return [...document.querySelectorAll("input[name='media_ids']:checked")].map((input) => input.value);
 }
 
+async function loadAuditLogs() {
+  try {
+    return await api(`/workspaces/${activeWorkspace}/audit-logs`);
+  } catch {
+    return [];
+  }
+}
+
 async function refresh() {
   const me = await api("/me");
   $("who").textContent = me.display_name;
@@ -47,17 +55,19 @@ async function refresh() {
 
 async function refreshWorkspace() {
   if (!activeWorkspace) return;
-  const [pages, posts, connections, notifications, media] = await Promise.all([
+  const [pages, posts, connections, notifications, media, auditLogs] = await Promise.all([
     api(`/workspaces/${activeWorkspace}/facebook/pages`),
     api(`/workspaces/${activeWorkspace}/posts`),
     api(`/workspaces/${activeWorkspace}/facebook/connections`),
     api(`/workspaces/${activeWorkspace}/notifications`),
     api(`/workspaces/${activeWorkspace}/media`),
+    loadAuditLogs(),
   ]);
   $("page").innerHTML = pages.map((page) => `<option value="${page.id}">${escapeHtml(page.name)}</option>`).join("");
   $("pages").textContent = pages.length ? `${pages.length} Fanpage đã kết nối` : "Chưa có Fanpage";
   $("connections").innerHTML = connections.map((connection) => `<p>${escapeHtml(connection.display_name)} — ${escapeHtml(connection.expires_at || "không rõ hạn")}</p>`).join("") || "<p>Chưa có kết nối.</p>";
   $("notifications").innerHTML = notifications.map((notification) => `<p>${escapeHtml(notification.message)}</p>`).join("");
+  $("audit-logs").innerHTML = auditLogs.map((log) => `<p>${escapeHtml(log.action)} — ${escapeHtml(log.actor_name || "system")} — ${escapeHtml(log.created_at)}</p>`).join("") || "<p>Chỉ owner/admin thấy nhật ký.</p>";
   $("media-list").innerHTML = media.map((asset) => `<p>${escapeHtml(asset.filename)} (${escapeHtml(asset.content_type)})</p>`).join("") || "<p>Chưa có media.</p>";
   $("media-options").innerHTML = media.map((asset) => `<label><input type="checkbox" name="media_ids" value="${asset.id}"> ${escapeHtml(asset.filename)}</label>`).join("") || "<p>Tải media trước nếu muốn đính kèm ảnh vào bài.</p>";
   $("posts").innerHTML = posts.map((post) => `<p><b>${escapeHtml(post.status)}</b> — ${escapeHtml(post.body)} (${post.media_count || 0} media)</p>`).join("") || "<p>Chưa có bài viết.</p>";
