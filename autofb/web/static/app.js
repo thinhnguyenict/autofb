@@ -63,6 +63,7 @@ async function refresh() {
 
 async function refreshWorkspace() {
   if (!activeWorkspace) return;
+  const [pages, posts, connections, notifications, media, members, auditLogs] = await Promise.all([
   const [pages, posts, connections, notifications, media, members, auditLogs, publishJobs] = await Promise.all([
     api(`/workspaces/${activeWorkspace}/facebook/pages`),
     api(`/workspaces/${activeWorkspace}/posts`),
@@ -81,6 +82,7 @@ async function refreshWorkspace() {
   $("audit-logs").innerHTML = auditLogs.map((log) => `<p>${escapeHtml(log.action)} — ${escapeHtml(log.actor_name || "system")} — ${escapeHtml(log.created_at)}</p>`).join("") || "<p>Chỉ owner/admin thấy nhật ký.</p>";
   $("media-list").innerHTML = media.map((asset) => `<p>${escapeHtml(asset.filename)} (${escapeHtml(asset.content_type)})</p>`).join("") || "<p>Chưa có media.</p>";
   $("media-options").innerHTML = media.map((asset) => `<label><input type="checkbox" name="media_ids" value="${asset.id}"> ${escapeHtml(asset.filename)}</label>`).join("") || "<p>Tải media trước nếu muốn đính kèm ảnh vào bài.</p>";
+  $("posts").innerHTML = posts.map((post) => `<p><b>${escapeHtml(post.status)}</b> — ${escapeHtml(post.body)} (${post.media_count || 0} media)</p>`).join("") || "<p>Chưa có bài viết.</p>";
   $("posts").innerHTML = posts.map((post) => {
     const cancel = ["scheduled", "queued"].includes(post.status) ? ` <button type="button" data-cancel-post="${post.id}">Hủy lịch</button>` : "";
     return `<p><b>${escapeHtml(post.status)}</b> — ${escapeHtml(post.body)} (${post.media_count || 0} media)${cancel}</p>`;

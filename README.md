@@ -56,6 +56,77 @@ make smoke
 make screenshot
 ```
 
+## Legacy configuration contract
+
+`config.json` contains Excel locations and arrays for Page IDs, Page names and
+Page access tokens. The Page ID and token lists must have exactly the same length;
+Page names are optional except for the legacy ad workflow, where they are required.
+The shared loader validates this before a worker sends a request.
+
+## Development direction
+
+The target product is a multi-tenant application with workspace-level roles,
+Facebook OAuth connections, encrypted token storage, a Postgres-backed content
+calendar, asynchronous publishing workers and an audit trail. See
+[`docs/product-roadmap.md`](docs/product-roadmap.md) for the staged implementation
+plan.
+
+## Multi-tenant API foundation
+
+The new API is intentionally a small first slice of the migration. It stores users,
+workspaces, membership roles, opaque sessions and audit events in an isolated local
+SQLite database (`AUTOFB_DATABASE_PATH`; default `./autofb.db`). This allows the
+identity and authorization contract to be tested before the upcoming PostgreSQL
+migration and Meta OAuth integration.
+
+Available endpoints:
+
+- `GET /healthz`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/me`
+- `GET` / `POST /api/v1/workspaces`
+- `PUT /api/v1/workspaces/{workspace_id}/members`
+
+Authenticated requests use `Authorization: Bearer <access_token>`. Tokens are
+opaque random values; only their SHA-256 digest is stored in the database.
+
+## Meta OAuth configuration
+
+The API uses the official server-side OAuth callback flow; it never accepts a
+Facebook password. Before enabling the connect endpoint, configure these API
+container environment variables with values from the Meta app configuration:
+
+
+## FastAPI and Playwright developer tools
+
+The repository includes small tools for local API and dashboard verification:
+
+```bash
+python tools/bootstrap_dev_tools.py
+python tools/fastapi_smoke.py
+AUTOFB_DASHBOARD_URL=http://127.0.0.1:8001 python tools/capture_dashboard.py
+```
+
+`tools/bootstrap_dev_tools.py` installs `reqs.txt` and the Playwright Chromium
+browser. `tools/fastapi_smoke.py` boots the FastAPI app through `TestClient`
+against a temporary SQLite database when FastAPI is installed; otherwise it runs
+the same registration/login/workspace/member contract through the service layer
+so the command still validates core behavior in dependency-restricted containers.
+`tools/capture_dashboard.py` uses Playwright to save a screenshot of a running
+dashboard to `output/dashboard.png` by default and writes a dependency-free PNG
+fallback artifact when Playwright is unavailable.
+
+Common commands are also available as Make targets:
+
+```bash
+make test
+make check
+make smoke
+make screenshot
+```
+
 ## One-command VPS install for aaPanel/Ubuntu
 
 For an Ubuntu 24.04 VPS managed by aaPanel and serving
