@@ -1,0 +1,27 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run repository checks
+        run: make check
+      - name: Compile developer tools
+        run: python -m py_compile tools/fastapi_smoke.py tools/capture_dashboard.py tools/bootstrap_dev_tools.py
+      - name: Capture dashboard artifact
+        run: make screenshot
+      - name: Verify dashboard artifact
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          assert Path("output/dashboard.png").read_bytes().startswith(b"\x89PNG")
+          print("dashboard artifact verified")
+          PY

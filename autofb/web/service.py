@@ -117,6 +117,20 @@ class AutoFBService:
             self._audit(conn, workspace_id, actor_id, "workspace.member_upserted", "user", user["id"])
             return {"id": user["id"], "email": user["email"], "display_name": user["display_name"], "role": role}
 
+    def list_members(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute(
+                """SELECT users.id, users.email, users.display_name, workspace_members.role, workspace_members.created_at
+                   FROM workspace_members JOIN users ON users.id = workspace_members.user_id
+                   WHERE workspace_members.workspace_id = ?
+                   ORDER BY CASE workspace_members.role
+                       WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'publisher' THEN 2
+                       WHEN 'editor' THEN 3 ELSE 4 END, users.email""",
+                (workspace_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
 
     def create_oauth_state(self, actor_id: str, workspace_id: str) -> str:
         with self.database.connect() as conn:
@@ -164,6 +178,66 @@ class AutoFBService:
         return [dict(row) for row in rows]
 
 
+
+
+    def register_media(self, actor_id: str, workspace_id: str, filename: str, storage_path: str, content_type: str, size_bytes: int) -> dict[str, str]:
+        if not filename or size_bytes < 1:
+            raise ServiceError("A non-empty media file is required")
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "editor", "publisher"}))
+            media = {"id": identifier(), "workspace_id": workspace_id, "filename": filename, "storage_path": storage_path, "content_type": content_type, "size_bytes": str(size_bytes), "created_at": now()}
+            conn.execute("INSERT INTO media_assets(id, workspace_id, filename, storage_path, content_type, size_bytes, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (media["id"], workspace_id, filename, storage_path, content_type, size_bytes, actor_id, media["created_at"]))
+            self._audit(conn, workspace_id, actor_id, "media.uploaded", "media_asset", media["id"])
+        return media
+
+    def list_media(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, filename, content_type, size_bytes, created_at FROM media_assets WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def connection_health(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, display_name, expires_at, created_at FROM oauth_connections WHERE workspace_id = ? ORDER BY created_at DESC", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_notifications(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT id, type, message, read_at, created_at FROM notifications WHERE workspace_id = ? AND user_id = ? ORDER BY created_at DESC", (workspace_id, actor_id)).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_notifications_read(self, actor_id: str, workspace_id: str) -> dict[str, int]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            updated = conn.execute(
+                "UPDATE notifications SET read_at = ? WHERE workspace_id = ? AND user_id = ? AND read_at IS NULL",
+                (now(), workspace_id, actor_id),
+            ).rowcount
+        return {"updated": updated}
+
+    def list_audit_logs(self, actor_id: str, workspace_id: str, limit: int = 25) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin"}))
+            rows = conn.execute(
+                """SELECT audit_logs.id, audit_logs.action, audit_logs.entity_type, audit_logs.entity_id,
+                          audit_logs.created_at, users.display_name AS actor_name
+                   FROM audit_logs LEFT JOIN users ON users.id = audit_logs.actor_id
+                   WHERE audit_logs.workspace_id = ?
+                   ORDER BY audit_logs.created_at DESC
+                   LIMIT ?""",
+                (workspace_id, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def notify_workspace(self, workspace_id: str, kind: str, message: str) -> None:
+        with self.database.connect() as conn:
+            members = conn.execute("SELECT user_id FROM workspace_members WHERE workspace_id = ?", (workspace_id,)).fetchall()
+            for member in members:
+                conn.execute("INSERT INTO notifications(id, workspace_id, user_id, type, message, created_at) VALUES (?, ?, ?, ?, ?, ?)", (identifier(), workspace_id, member["user_id"], kind, message, now()))
+
+    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str, media_ids: list[str] | None = None) -> dict[str, str]:
     def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
         body = body.strip()
         if not body:
@@ -175,6 +249,11 @@ class AutoFBService:
                 raise ServiceError("Page does not belong to this workspace")
             timestamp = now(); post = {"id": identifier(), "workspace_id": workspace_id, "page_id": page_id, "body": body, "status": "draft", "created_at": timestamp, "updated_at": timestamp}
             conn.execute("INSERT INTO posts(id, workspace_id, page_id, body, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (post["id"], workspace_id, page_id, body, "draft", actor_id, timestamp, timestamp))
+            for sort_order, media_id in enumerate(media_ids or []):
+                media = conn.execute("SELECT id FROM media_assets WHERE id = ? AND workspace_id = ?", (media_id, workspace_id)).fetchone()
+                if media is None:
+                    raise ServiceError("Media does not belong to this workspace")
+                conn.execute("INSERT INTO post_media(post_id, media_asset_id, sort_order) VALUES (?, ?, ?)", (post["id"], media_id, sort_order))
             self._audit(conn, workspace_id, actor_id, "post.created", "post", post["id"])
         return post
 
@@ -200,6 +279,45 @@ class AutoFBService:
     def list_posts(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
         with self.database.connect() as conn:
             self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone, COUNT(post_media.media_asset_id) AS media_count FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id LEFT JOIN post_media ON post_media.post_id = posts.id WHERE posts.workspace_id = ? GROUP BY posts.id, schedules.scheduled_at, schedules.timezone ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_publish_jobs(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "publisher"}))
+            rows = conn.execute(
+                """SELECT publish_jobs.id, publish_jobs.post_id, publish_jobs.status, publish_jobs.run_at,
+                          publish_jobs.attempts, publish_jobs.last_error, publish_jobs.updated_at,
+                          posts.body, facebook_pages.name AS page_name
+                   FROM publish_jobs JOIN posts ON posts.id = publish_jobs.post_id
+                   JOIN facebook_pages ON facebook_pages.id = posts.page_id
+                   WHERE posts.workspace_id = ?
+                   ORDER BY publish_jobs.run_at DESC""",
+                (workspace_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cancel_scheduled_post(self, actor_id: str, workspace_id: str, post_id: str) -> dict[str, int | str]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "publisher"}))
+            post = conn.execute(
+                "SELECT id, status FROM posts WHERE id = ? AND workspace_id = ?",
+                (post_id, workspace_id),
+            ).fetchone()
+            if post is None:
+                raise ServiceError("Post does not belong to this workspace")
+            if post["status"] not in {"scheduled", "queued"}:
+                raise ServiceError("Only scheduled or queued posts can be cancelled")
+            timestamp = now()
+            conn.execute("DELETE FROM schedules WHERE post_id = ?", (post_id,))
+            updated_jobs = conn.execute(
+                "UPDATE publish_jobs SET status = 'failed', last_error = ?, updated_at = ? WHERE post_id = ? AND status IN ('queued', 'running')",
+                ("cancelled before publish", timestamp, post_id),
+            ).rowcount
+            conn.execute("UPDATE posts SET status = 'draft', updated_at = ? WHERE id = ?", (timestamp, post_id))
+            self._audit(conn, workspace_id, actor_id, "post.cancelled", "post", post_id)
+        return {"post_id": post_id, "updated_jobs": updated_jobs}
+
             rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id WHERE posts.workspace_id = ? ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
         return [dict(row) for row in rows]
 

@@ -61,6 +61,16 @@ class MetaOAuth:
         expires_in = int(token_response.get("expires_in", 0) or 0)
         return str(profile.get("id", "")), str(profile.get("name", "Facebook user")), pages, self.encrypt(access_token), expires_in
 
+    @classmethod
+    def from_environment(cls) -> "MetaOAuth":
+        return cls(MetaOAuthSettings.from_environment())
+
+    def encrypt(self, value: str) -> str:
+        return self.cipher.encrypt(value.encode()).decode()
+
+    def decrypt(self, value: str) -> str:
+        return self.cipher.decrypt(value.encode()).decode()
+
     def encrypt(self, value: str) -> str:
         return self.cipher.encrypt(value.encode()).decode()
 

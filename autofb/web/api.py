@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
@@ -40,6 +46,7 @@ class AddMemberRequest(BaseModel):
 class PostRequest(BaseModel):
     page_id: str
     body: str = Field(min_length=1, max_length=5000)
+    media_ids: list[str] = Field(default_factory=list)
 
 
 class ScheduleRequest(BaseModel):
@@ -78,6 +85,26 @@ def meta_oauth() -> MetaOAuth:
 
 
 app = FastAPI(title="AutoFB API", version="0.1.0")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "public, max-age=3600"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+STATIC_DIR = Path(__file__).with_name("static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def dashboard() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/healthz")
@@ -123,6 +150,11 @@ def add_member(workspace_id: str, payload: AddMemberRequest, user: dict[str, str
     return operation(lambda: service().add_member(user["id"], workspace_id, payload.email, payload.role))
 
 
+@app.get("/api/v1/workspaces/{workspace_id}/members")
+def members(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_members(user["id"], workspace_id))
+
+
 @app.post("/api/v1/workspaces/{workspace_id}/facebook/connect")
 def start_facebook_connect(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     state = operation(lambda: service().create_oauth_state(user["id"], workspace_id))
@@ -156,9 +188,59 @@ def posts(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> li
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts", status_code=status.HTTP_201_CREATED)
 def create_post(workspace_id: str, payload: PostRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body, payload.media_ids))
     return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body))
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)
 def schedule_post(workspace_id: str, post_id: str, payload: ScheduleRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     return operation(lambda: service().schedule_post(user["id"], workspace_id, post_id, payload.scheduled_at, payload.timezone))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/cancel")
+def cancel_scheduled_post(workspace_id: str, post_id: str, user: dict[str, str] = Depends(current_user)) -> dict[str, int | str]:
+    return operation(lambda: service().cancel_scheduled_post(user["id"], workspace_id, post_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/publish-jobs")
+def publish_jobs(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_publish_jobs(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/facebook/connections")
+def facebook_connections(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().connection_health(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/notifications")
+def notifications(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_notifications(user["id"], workspace_id))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/notifications/read")
+def mark_notifications_read(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> dict[str, int]:
+    return operation(lambda: service().mark_notifications_read(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/audit-logs")
+def audit_logs(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_audit_logs(user["id"], workspace_id))
+
+
+@app.get("/api/v1/workspaces/{workspace_id}/media")
+def media(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_media(user["id"], workspace_id))
+
+
+@app.post("/api/v1/workspaces/{workspace_id}/media", status_code=status.HTTP_201_CREATED)
+def upload_media(workspace_id: str, file: UploadFile, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
+    allowed = {"image/jpeg", "image/png", "video/mp4"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG, PNG, and MP4 media are supported")
+    directory = Path(os.environ.get("AUTOFB_MEDIA_DIR", "media")) / workspace_id
+    directory.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename or "upload").name
+    storage_path = directory / f"{uuid.uuid4()}-{safe_name}"
+    with storage_path.open("wb") as target:
+        shutil.copyfileobj(file.file, target)
+    return operation(lambda: service().register_media(user["id"], workspace_id, safe_name, str(storage_path), file.content_type or "application/octet-stream", storage_path.stat().st_size))
