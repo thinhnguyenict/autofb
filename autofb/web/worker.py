@@ -39,8 +39,11 @@ class PublishWorker:
             try:
                 remote_id = self._publish_job(job)
             except Exception as exc:  # Job errors are persisted and never crash the worker loop.
-                self._handle_failure(job, str(exc))
-                logging.exception("Publish job %s failed", job["id"])
+                retrying = self._handle_failure(job, str(exc))
+                if retrying:
+                    logging.info("Publish job %s failed and was requeued: %s", job["id"], exc)
+                else:
+                    logging.exception("Publish job %s failed permanently", job["id"])
             else:
                 self._finish(job["id"], job["post_id"], "succeeded", None)
                 logging.info("Publish job %s completed with remote post %s", job["id"], remote_id)
@@ -90,7 +93,7 @@ class PublishWorker:
             return self.media_publisher(job["facebook_page_id"], job["access_token"], job["body"], media)
         return self.publisher(job["facebook_page_id"], job["access_token"], job["body"])
 
-    def _handle_failure(self, job: dict[str, str], error: str) -> None:
+    def _handle_failure(self, job: dict[str, str], error: str) -> bool:
         attempts = int(job["attempts"])
         if attempts < self.MAX_ATTEMPTS:
             from datetime import timedelta
@@ -99,8 +102,9 @@ class PublishWorker:
             with self.database.connect() as conn:
                 conn.execute("UPDATE publish_jobs SET status = 'queued', run_at = ?, last_error = ?, updated_at = ? WHERE id = ?", (retry_at, error, now(), job["id"]))
                 conn.execute("UPDATE posts SET status = 'queued', updated_at = ? WHERE id = ?", (now(), job["post_id"]))
-            return
+            return True
         self._finish(job["id"], job["post_id"], "failed", error)
+        return False
 
     def _finish(self, job_id: str, post_id: str, status: str, error: str | None) -> None:
         post_status = "published" if status == "succeeded" else "failed"
