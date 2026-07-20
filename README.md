@@ -40,10 +40,12 @@ AUTOFB_DASHBOARD_URL=http://127.0.0.1:8001 python tools/capture_dashboard.py
 
 `tools/bootstrap_dev_tools.py` installs `reqs.txt` and the Playwright Chromium
 browser. `tools/fastapi_smoke.py` boots the FastAPI app through `TestClient`
-against a temporary SQLite database, then verifies health, registration, login,
-workspace creation and member listing. `tools/capture_dashboard.py` uses
-Playwright to save a screenshot of a running dashboard to `output/dashboard.png`
-by default.
+against a temporary SQLite database when FastAPI is installed; otherwise it runs
+the same registration/login/workspace/member contract through the service layer
+so the command still validates core behavior in dependency-restricted containers.
+`tools/capture_dashboard.py` uses Playwright to save a screenshot of a running
+dashboard to `output/dashboard.png` by default and writes a dependency-free PNG
+fallback artifact when Playwright is unavailable.
 
 ## Legacy configuration contract
 
