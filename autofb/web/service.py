@@ -241,7 +241,7 @@ class AutoFBService:
     def list_posts(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
         with self.database.connect() as conn:
             self._require_role(conn, actor_id, workspace_id, ROLES)
-            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id WHERE posts.workspace_id = ? ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
+            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone, COUNT(post_media.media_asset_id) AS media_count FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id LEFT JOIN post_media ON post_media.post_id = posts.id WHERE posts.workspace_id = ? GROUP BY posts.id, schedules.scheduled_at, schedules.timezone ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
         return [dict(row) for row in rows]
 
     def _require_role(self, conn: Any, user_id: str, workspace_id: str, allowed: frozenset[str]) -> str:

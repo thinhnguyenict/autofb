@@ -155,3 +155,4 @@ class PostMediaTests(FacebookPageStorageTests):
         with self.service.database.connect() as conn:
             attached = conn.execute("SELECT media_asset_id FROM post_media WHERE post_id = ?", (post["id"],)).fetchone()
         self.assertEqual(attached["media_asset_id"], media["id"])
+        self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["media_count"], 1)
