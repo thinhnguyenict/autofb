@@ -8,7 +8,7 @@ if [ "${AUTOFB_SERVICE:-dashboard}" = "api" ]; then
 fi
 
 if [ "${AUTOFB_SERVICE:-dashboard}" = "worker" ]; then
-  exec python3 -c "from autofb.web.database import Database; from autofb.web.worker import PublishWorker; import os; PublishWorker(Database(os.environ["AUTOFB_DATABASE_PATH"])).run_once()"
+  exec python3 -c 'from autofb.web.database import Database; from autofb.web.worker import PublishWorker; import os; PublishWorker(Database(os.environ["AUTOFB_DATABASE_PATH"])).run_forever(int(os.environ.get("AUTOFB_WORKER_POLL_SECONDS", "60")))'
 fi
 
 if [ ! -f config.json ] && [ -f config.json.example ]; then

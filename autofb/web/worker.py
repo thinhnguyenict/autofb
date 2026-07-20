@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Callable
 
@@ -36,6 +37,15 @@ class PublishWorker:
                 self._finish(job["id"], job["post_id"], "succeeded", None)
                 logging.info("Publish job %s completed with remote post %s", job["id"], remote_id)
         return len(claimed)
+
+    def run_forever(self, poll_seconds: int = 60) -> None:
+        """Continuously poll for due jobs until the process is stopped."""
+        if poll_seconds < 1:
+            raise ValueError("poll_seconds must be at least 1")
+        logging.info("Starting publish worker loop with %s second polling", poll_seconds)
+        while True:
+            self.run_once()
+            time.sleep(poll_seconds)
 
     def _claim_due_jobs(self) -> list[dict[str, str]]:
         with self.database.connect() as conn:

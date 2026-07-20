@@ -19,9 +19,10 @@ services:
     environment:
       AUTOFB_SERVICE: worker
       AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+      AUTOFB_WORKER_POLL_SECONDS: "30"
     volumes:
       - autofb_api_data:/var/lib/autofb
-    restart: "no"
+    restart: unless-stopped
 
   autofb-api:
     build: .

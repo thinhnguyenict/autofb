@@ -104,6 +104,11 @@ class ContentSchedulingTests(unittest.TestCase):
 
 
 class PublishWorkerTests(ContentSchedulingTests):
+    def test_worker_loop_rejects_invalid_poll_interval(self):
+        worker = PublishWorker(self.service.database, publisher=lambda *_: "remote-id", decryptor=lambda token: "plain-token")
+        with self.assertRaisesRegex(ValueError, "poll_seconds"):
+            worker.run_forever(0)
+
     def test_worker_claims_and_completes_due_job(self):
         post = self.service.create_post(self.owner["id"], self.workspace["id"], self.page["id"], "Hello")
         self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
