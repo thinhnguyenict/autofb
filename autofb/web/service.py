@@ -117,6 +117,20 @@ class AutoFBService:
             self._audit(conn, workspace_id, actor_id, "workspace.member_upserted", "user", user["id"])
             return {"id": user["id"], "email": user["email"], "display_name": user["display_name"], "role": role}
 
+    def list_members(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            rows = conn.execute(
+                """SELECT users.id, users.email, users.display_name, workspace_members.role, workspace_members.created_at
+                   FROM workspace_members JOIN users ON users.id = workspace_members.user_id
+                   WHERE workspace_members.workspace_id = ?
+                   ORDER BY CASE workspace_members.role
+                       WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'publisher' THEN 2
+                       WHEN 'editor' THEN 3 ELSE 4 END, users.email""",
+                (workspace_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
 
     def create_oauth_state(self, actor_id: str, workspace_id: str) -> str:
         with self.database.connect() as conn:

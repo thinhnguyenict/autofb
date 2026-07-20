@@ -28,6 +28,8 @@ class AutoFBServiceTests(unittest.TestCase):
         member = self.service.add_member(self.owner["id"], workspace["id"], "editor@example.com", "editor")
         self.assertEqual(member["role"], "editor")
         self.assertEqual(self.service.list_workspaces(self.editor["id"])[0]["id"], workspace["id"])
+        members = self.service.list_members(self.owner["id"], workspace["id"])
+        self.assertEqual([item["role"] for item in members], ["owner", "editor"])
 
     def test_member_without_management_role_cannot_add_people(self):
         workspace = self.service.create_workspace(self.owner["id"], "Garden team")

@@ -55,17 +55,19 @@ async function refresh() {
 
 async function refreshWorkspace() {
   if (!activeWorkspace) return;
-  const [pages, posts, connections, notifications, media, auditLogs] = await Promise.all([
+  const [pages, posts, connections, notifications, media, members, auditLogs] = await Promise.all([
     api(`/workspaces/${activeWorkspace}/facebook/pages`),
     api(`/workspaces/${activeWorkspace}/posts`),
     api(`/workspaces/${activeWorkspace}/facebook/connections`),
     api(`/workspaces/${activeWorkspace}/notifications`),
     api(`/workspaces/${activeWorkspace}/media`),
+    api(`/workspaces/${activeWorkspace}/members`),
     loadAuditLogs(),
   ]);
   $("page").innerHTML = pages.map((page) => `<option value="${page.id}">${escapeHtml(page.name)}</option>`).join("");
   $("pages").textContent = pages.length ? `${pages.length} Fanpage đã kết nối` : "Chưa có Fanpage";
   $("connections").innerHTML = connections.map((connection) => `<p>${escapeHtml(connection.display_name)} — ${escapeHtml(connection.expires_at || "không rõ hạn")}</p>`).join("") || "<p>Chưa có kết nối.</p>";
+  $("members").innerHTML = members.map((member) => `<p>${escapeHtml(member.display_name)} — ${escapeHtml(member.email)} — <b>${escapeHtml(member.role)}</b></p>`).join("");
   $("notifications").innerHTML = notifications.map((notification) => `<p>${escapeHtml(notification.message)}</p>`).join("");
   $("audit-logs").innerHTML = auditLogs.map((log) => `<p>${escapeHtml(log.action)} — ${escapeHtml(log.actor_name || "system")} — ${escapeHtml(log.created_at)}</p>`).join("") || "<p>Chỉ owner/admin thấy nhật ký.</p>";
   $("media-list").innerHTML = media.map((asset) => `<p>${escapeHtml(asset.filename)} (${escapeHtml(asset.content_type)})</p>`).join("") || "<p>Chưa có media.</p>";
@@ -122,6 +124,20 @@ $("workspace").onsubmit = async (event) => {
   try {
     await api("/workspaces", { method: "POST", body: JSON.stringify({ name: $("workspace-name").value }) });
     await refresh();
+  } catch (error) {
+    message(error.message);
+  }
+};
+
+$("member").onsubmit = async (event) => {
+  event.preventDefault();
+  try {
+    await api(`/workspaces/${activeWorkspace}/members`, {
+      method: "PUT",
+      body: JSON.stringify({ email: $("member-email").value, role: $("member-role").value }),
+    });
+    $("member-email").value = "";
+    await refreshWorkspace();
   } catch (error) {
     message(error.message);
   }

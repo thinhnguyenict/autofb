@@ -149,6 +149,11 @@ def add_member(workspace_id: str, payload: AddMemberRequest, user: dict[str, str
     return operation(lambda: service().add_member(user["id"], workspace_id, payload.email, payload.role))
 
 
+@app.get("/api/v1/workspaces/{workspace_id}/members")
+def members(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_members(user["id"], workspace_id))
+
+
 @app.post("/api/v1/workspaces/{workspace_id}/facebook/connect")
 def start_facebook_connect(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     state = operation(lambda: service().create_oauth_state(user["id"], workspace_id))
