@@ -163,6 +163,9 @@ class OperationalVisibilityTests(FacebookPageStorageTests):
         self.service.notify_workspace(self.workspace["id"], "token_expiring", "Reconnect Meta")
         self.assertEqual(self.service.connection_health(self.owner["id"], self.workspace["id"])[0]["id"], connection["id"])
         self.assertEqual(self.service.list_notifications(self.owner["id"], self.workspace["id"])[0]["type"], "token_expiring")
+        result = self.service.mark_notifications_read(self.owner["id"], self.workspace["id"])
+        self.assertEqual(result["updated"], 1)
+        self.assertIsNotNone(self.service.list_notifications(self.owner["id"], self.workspace["id"])[0]["read_at"])
 
     def test_owner_can_view_audit_logs_but_viewer_cannot(self):
         other = self.service.register("other@example.com", "another-strong-password", "Other")

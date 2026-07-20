@@ -208,6 +208,15 @@ class AutoFBService:
             rows = conn.execute("SELECT id, type, message, read_at, created_at FROM notifications WHERE workspace_id = ? AND user_id = ? ORDER BY created_at DESC", (workspace_id, actor_id)).fetchall()
         return [dict(row) for row in rows]
 
+    def mark_notifications_read(self, actor_id: str, workspace_id: str) -> dict[str, int]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, ROLES)
+            updated = conn.execute(
+                "UPDATE notifications SET read_at = ? WHERE workspace_id = ? AND user_id = ? AND read_at IS NULL",
+                (now(), workspace_id, actor_id),
+            ).rowcount
+        return {"updated": updated}
+
     def list_audit_logs(self, actor_id: str, workspace_id: str, limit: int = 25) -> list[dict[str, str]]:
         with self.database.connect() as conn:
             self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin"}))

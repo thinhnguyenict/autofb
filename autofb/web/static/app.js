@@ -68,7 +68,7 @@ async function refreshWorkspace() {
   $("pages").textContent = pages.length ? `${pages.length} Fanpage đã kết nối` : "Chưa có Fanpage";
   $("connections").innerHTML = connections.map((connection) => `<p>${escapeHtml(connection.display_name)} — ${escapeHtml(connection.expires_at || "không rõ hạn")}</p>`).join("") || "<p>Chưa có kết nối.</p>";
   $("members").innerHTML = members.map((member) => `<p>${escapeHtml(member.display_name)} — ${escapeHtml(member.email)} — <b>${escapeHtml(member.role)}</b></p>`).join("");
-  $("notifications").innerHTML = notifications.map((notification) => `<p>${escapeHtml(notification.message)}</p>`).join("");
+  $("notifications").innerHTML = notifications.map((notification) => `<p>${notification.read_at ? "✓" : "●"} ${escapeHtml(notification.message)}</p>`).join("") || "<p>Không có thông báo.</p>";
   $("audit-logs").innerHTML = auditLogs.map((log) => `<p>${escapeHtml(log.action)} — ${escapeHtml(log.actor_name || "system")} — ${escapeHtml(log.created_at)}</p>`).join("") || "<p>Chỉ owner/admin thấy nhật ký.</p>";
   $("media-list").innerHTML = media.map((asset) => `<p>${escapeHtml(asset.filename)} (${escapeHtml(asset.content_type)})</p>`).join("") || "<p>Chưa có media.</p>";
   $("media-options").innerHTML = media.map((asset) => `<label><input type="checkbox" name="media_ids" value="${asset.id}"> ${escapeHtml(asset.filename)}</label>`).join("") || "<p>Tải media trước nếu muốn đính kèm ảnh vào bài.</p>";
@@ -137,6 +137,15 @@ $("member").onsubmit = async (event) => {
       body: JSON.stringify({ email: $("member-email").value, role: $("member-role").value }),
     });
     $("member-email").value = "";
+    await refreshWorkspace();
+  } catch (error) {
+    message(error.message);
+  }
+};
+
+$("mark-read").onclick = async () => {
+  try {
+    await api(`/workspaces/${activeWorkspace}/notifications/read`, { method: "POST" });
     await refreshWorkspace();
   } catch (error) {
     message(error.message);
