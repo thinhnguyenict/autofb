@@ -44,6 +44,14 @@ async function loadAuditLogs() {
   }
 }
 
+async function loadPublishJobs() {
+  try {
+    return await api(`/workspaces/${activeWorkspace}/publish-jobs`);
+  } catch {
+    return [];
+  }
+}
+
 async function refresh() {
   const me = await api("/me");
   $("who").textContent = me.display_name;
@@ -56,6 +64,7 @@ async function refresh() {
 async function refreshWorkspace() {
   if (!activeWorkspace) return;
   const [pages, posts, connections, notifications, media, members, auditLogs] = await Promise.all([
+  const [pages, posts, connections, notifications, media, members, auditLogs, publishJobs] = await Promise.all([
     api(`/workspaces/${activeWorkspace}/facebook/pages`),
     api(`/workspaces/${activeWorkspace}/posts`),
     api(`/workspaces/${activeWorkspace}/facebook/connections`),
@@ -63,6 +72,7 @@ async function refreshWorkspace() {
     api(`/workspaces/${activeWorkspace}/media`),
     api(`/workspaces/${activeWorkspace}/members`),
     loadAuditLogs(),
+    loadPublishJobs(),
   ]);
   $("page").innerHTML = pages.map((page) => `<option value="${page.id}">${escapeHtml(page.name)}</option>`).join("");
   $("pages").textContent = pages.length ? `${pages.length} Fanpage đã kết nối` : "Chưa có Fanpage";
@@ -73,6 +83,11 @@ async function refreshWorkspace() {
   $("media-list").innerHTML = media.map((asset) => `<p>${escapeHtml(asset.filename)} (${escapeHtml(asset.content_type)})</p>`).join("") || "<p>Chưa có media.</p>";
   $("media-options").innerHTML = media.map((asset) => `<label><input type="checkbox" name="media_ids" value="${asset.id}"> ${escapeHtml(asset.filename)}</label>`).join("") || "<p>Tải media trước nếu muốn đính kèm ảnh vào bài.</p>";
   $("posts").innerHTML = posts.map((post) => `<p><b>${escapeHtml(post.status)}</b> — ${escapeHtml(post.body)} (${post.media_count || 0} media)</p>`).join("") || "<p>Chưa có bài viết.</p>";
+  $("posts").innerHTML = posts.map((post) => {
+    const cancel = ["scheduled", "queued"].includes(post.status) ? ` <button type="button" data-cancel-post="${post.id}">Hủy lịch</button>` : "";
+    return `<p><b>${escapeHtml(post.status)}</b> — ${escapeHtml(post.body)} (${post.media_count || 0} media)${cancel}</p>`;
+  }).join("") || "<p>Chưa có bài viết.</p>";
+  $("publish-jobs").innerHTML = publishJobs.map((job) => `<p><b>${escapeHtml(job.status)}</b> — ${escapeHtml(job.page_name)} — ${escapeHtml(job.run_at)} — thử ${job.attempts}</p>`).join("") || "<p>Chưa có job publish.</p>";
 }
 
 $("login").onsubmit = async (event) => {
@@ -146,6 +161,17 @@ $("member").onsubmit = async (event) => {
 $("mark-read").onclick = async () => {
   try {
     await api(`/workspaces/${activeWorkspace}/notifications/read`, { method: "POST" });
+    await refreshWorkspace();
+  } catch (error) {
+    message(error.message);
+  }
+};
+
+$("posts").onclick = async (event) => {
+  const postId = event.target.dataset.cancelPost;
+  if (!postId) return;
+  try {
+    await api(`/workspaces/${activeWorkspace}/posts/${postId}/cancel`, { method: "POST" });
     await refreshWorkspace();
   } catch (error) {
     message(error.message);

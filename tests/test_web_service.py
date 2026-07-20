@@ -103,6 +103,17 @@ class ContentSchedulingTests(unittest.TestCase):
         scheduled = self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
         self.assertTrue(scheduled["job_id"])
         self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["status"], "scheduled")
+        jobs = self.service.list_publish_jobs(self.owner["id"], self.workspace["id"])
+        self.assertEqual(jobs[0]["id"], scheduled["job_id"])
+        self.assertEqual(jobs[0]["page_name"], "Garden")
+
+    def test_cancel_scheduled_post_removes_schedule_and_job(self):
+        post = self.service.create_post(self.owner["id"], self.workspace["id"], self.page["id"], "Hello Garden")
+        self.service.schedule_post(self.owner["id"], self.workspace["id"], post["id"], "2030-01-01T10:00:00+00:00", "UTC")
+        result = self.service.cancel_scheduled_post(self.owner["id"], self.workspace["id"], post["id"])
+        self.assertEqual(result["updated_jobs"], 1)
+        self.assertEqual(self.service.list_posts(self.owner["id"], self.workspace["id"])[0]["status"], "draft")
+        self.assertEqual(self.service.list_publish_jobs(self.owner["id"], self.workspace["id"])[0]["status"], "failed")
 
 
 class PublishWorkerTests(ContentSchedulingTests):

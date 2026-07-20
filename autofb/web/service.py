@@ -238,6 +238,7 @@ class AutoFBService:
                 conn.execute("INSERT INTO notifications(id, workspace_id, user_id, type, message, created_at) VALUES (?, ?, ?, ?, ?, ?)", (identifier(), workspace_id, member["user_id"], kind, message, now()))
 
     def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str, media_ids: list[str] | None = None) -> dict[str, str]:
+    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
         body = body.strip()
         if not body:
             raise ServiceError("Post body is required")
@@ -279,6 +280,45 @@ class AutoFBService:
         with self.database.connect() as conn:
             self._require_role(conn, actor_id, workspace_id, ROLES)
             rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone, COUNT(post_media.media_asset_id) AS media_count FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id LEFT JOIN post_media ON post_media.post_id = posts.id WHERE posts.workspace_id = ? GROUP BY posts.id, schedules.scheduled_at, schedules.timezone ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_publish_jobs(self, actor_id: str, workspace_id: str) -> list[dict[str, str]]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "publisher"}))
+            rows = conn.execute(
+                """SELECT publish_jobs.id, publish_jobs.post_id, publish_jobs.status, publish_jobs.run_at,
+                          publish_jobs.attempts, publish_jobs.last_error, publish_jobs.updated_at,
+                          posts.body, facebook_pages.name AS page_name
+                   FROM publish_jobs JOIN posts ON posts.id = publish_jobs.post_id
+                   JOIN facebook_pages ON facebook_pages.id = posts.page_id
+                   WHERE posts.workspace_id = ?
+                   ORDER BY publish_jobs.run_at DESC""",
+                (workspace_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cancel_scheduled_post(self, actor_id: str, workspace_id: str, post_id: str) -> dict[str, int | str]:
+        with self.database.connect() as conn:
+            self._require_role(conn, actor_id, workspace_id, frozenset({"owner", "admin", "publisher"}))
+            post = conn.execute(
+                "SELECT id, status FROM posts WHERE id = ? AND workspace_id = ?",
+                (post_id, workspace_id),
+            ).fetchone()
+            if post is None:
+                raise ServiceError("Post does not belong to this workspace")
+            if post["status"] not in {"scheduled", "queued"}:
+                raise ServiceError("Only scheduled or queued posts can be cancelled")
+            timestamp = now()
+            conn.execute("DELETE FROM schedules WHERE post_id = ?", (post_id,))
+            updated_jobs = conn.execute(
+                "UPDATE publish_jobs SET status = 'failed', last_error = ?, updated_at = ? WHERE post_id = ? AND status IN ('queued', 'running')",
+                ("cancelled before publish", timestamp, post_id),
+            ).rowcount
+            conn.execute("UPDATE posts SET status = 'draft', updated_at = ? WHERE id = ?", (timestamp, post_id))
+            self._audit(conn, workspace_id, actor_id, "post.cancelled", "post", post_id)
+        return {"post_id": post_id, "updated_jobs": updated_jobs}
+
+            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id WHERE posts.workspace_id = ? ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
         return [dict(row) for row in rows]
 
     def _require_role(self, conn: Any, user_id: str, workspace_id: str, allowed: frozenset[str]) -> str:

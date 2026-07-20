@@ -71,6 +71,9 @@ class MetaOAuth:
     def decrypt(self, value: str) -> str:
         return self.cipher.decrypt(value.encode()).decode()
 
+    def encrypt(self, value: str) -> str:
+        return self.cipher.encrypt(value.encode()).decode()
+
     def _get(self, path: str, params: dict[str, str]) -> dict:
         response = httpx.get(self.base_url + path, params=params, timeout=20)
         try:
