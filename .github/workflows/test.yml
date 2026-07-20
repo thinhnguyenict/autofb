@@ -12,9 +12,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Run unit tests
-        run: python -m unittest discover -s tests -v
-      - name: Compile application
-        run: python -m compileall -q autofb tests
-      - name: Check whitespace
-        run: git diff --check HEAD~1 HEAD
+      - name: Run repository checks
+        run: make check
+      - name: Compile developer tools
+        run: python -m py_compile tools/fastapi_smoke.py tools/capture_dashboard.py tools/bootstrap_dev_tools.py
+      - name: Capture dashboard artifact
+        run: make screenshot
+      - name: Verify dashboard artifact
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          assert Path("output/dashboard.png").read_bytes().startswith(b"\x89PNG")
+          print("dashboard artifact verified")
+          PY
