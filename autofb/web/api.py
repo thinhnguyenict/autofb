@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -188,6 +189,7 @@ def posts(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> li
 @app.post("/api/v1/workspaces/{workspace_id}/posts", status_code=status.HTTP_201_CREATED)
 def create_post(workspace_id: str, payload: PostRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str]:
     return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body, payload.media_ids))
+    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body))
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)

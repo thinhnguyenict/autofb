@@ -238,6 +238,7 @@ class AutoFBService:
                 conn.execute("INSERT INTO notifications(id, workspace_id, user_id, type, message, created_at) VALUES (?, ?, ?, ?, ?, ?)", (identifier(), workspace_id, member["user_id"], kind, message, now()))
 
     def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str, media_ids: list[str] | None = None) -> dict[str, str]:
+    def create_post(self, actor_id: str, workspace_id: str, page_id: str, body: str) -> dict[str, str]:
         body = body.strip()
         if not body:
             raise ServiceError("Post body is required")
@@ -316,6 +317,9 @@ class AutoFBService:
             conn.execute("UPDATE posts SET status = 'draft', updated_at = ? WHERE id = ?", (timestamp, post_id))
             self._audit(conn, workspace_id, actor_id, "post.cancelled", "post", post_id)
         return {"post_id": post_id, "updated_jobs": updated_jobs}
+
+            rows = conn.execute("SELECT posts.id, posts.page_id, posts.body, posts.status, posts.created_at, schedules.scheduled_at, schedules.timezone FROM posts LEFT JOIN schedules ON schedules.post_id = posts.id WHERE posts.workspace_id = ? ORDER BY COALESCE(schedules.scheduled_at, posts.created_at)", (workspace_id,)).fetchall()
+        return [dict(row) for row in rows]
 
     def _require_role(self, conn: Any, user_id: str, workspace_id: str, allowed: frozenset[str]) -> str:
         row = conn.execute("SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?", (workspace_id, user_id)).fetchone()
