@@ -20,6 +20,9 @@ def main() -> None:
     requirements = root / "requirements-dev.txt"
     run([sys.executable, "-m", "pip", "install", "-r", str(requirements)])
     run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"])
+    requirements = root / "reqs.txt"
+    run([sys.executable, "-m", "pip", "install", "-r", str(requirements)])
+    run([sys.executable, "-m", "playwright", "install", "chromium"])
     print("FastAPI and Playwright developer tools are ready")
 
 

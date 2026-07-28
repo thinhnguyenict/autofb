@@ -6,6 +6,9 @@ import logging
 import os
 import sqlite3
 import time
+import os
+import shutil
+import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -14,6 +17,10 @@ from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -28,6 +35,9 @@ from .storage import LocalMediaStorage, MediaStorageError, S3MediaStorage, media
 bearer = HTTPBearer(auto_error=False)
 application_logger = configure_logging("autofb.api")
 error_report_limiter = ErrorReportLimiter()
+from .service import AutoFBService, ServiceError
+
+bearer = HTTPBearer(auto_error=False)
 
 
 class RegisterRequest(BaseModel):
@@ -201,6 +211,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = correlation_id
         enable_hsts = os.environ.get("AUTOFB_ENABLE_HSTS", "").lower() in {"1", "true", "yes"}
         response.headers.update(http_security_headers(request.url.path, enable_hsts=enable_hsts))
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "public, max-age=3600"
         return response
 
 
@@ -264,6 +279,10 @@ def backupz(response: Response) -> dict[str, object]:
     return report
 
 
+    service()
+    return {"status": "ok"}
+
+
 @app.post("/api/v1/auth/register", status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest) -> dict[str, str]:
     return operation(lambda: service().register(payload.email, payload.password, payload.display_name))
@@ -280,6 +299,10 @@ def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -
     if credentials is not None and credentials.scheme.lower() == "bearer":
         service().logout(credentials.credentials)
     return {"status": "ok"}
+@app.post("/api/v1/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        service().logout(credentials.credentials)
 
 
 @app.get("/api/v1/me")
@@ -407,6 +430,9 @@ def export_posts(workspace_id: str, status_filter: str | None = None, user: dict
     csv_body = operation(lambda: service().export_posts_csv(user["id"], workspace_id, status_filter))
     headers = {"Content-Disposition": f'attachment; filename="autofb-posts-{workspace_id}.csv"'}
     return Response(content=csv_body, media_type="text/csv; charset=utf-8", headers=headers)
+@app.get("/api/v1/workspaces/{workspace_id}/posts")
+def posts(workspace_id: str, user: dict[str, str] = Depends(current_user)) -> list[dict[str, str]]:
+    return operation(lambda: service().list_posts(user["id"], workspace_id))
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts", status_code=status.HTTP_201_CREATED)
@@ -432,6 +458,7 @@ def request_post_approval(workspace_id: str, post_id: str, payload: ApprovalRequ
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/approval/review")
 def review_post_approval(workspace_id: str, post_id: str, payload: ApprovalReviewRequest, user: dict[str, str] = Depends(current_user)) -> dict[str, str | None]:
     return operation(lambda: service().review_post_approval(user["id"], workspace_id, post_id, payload.decision, payload.comment))
+    return operation(lambda: service().create_post(user["id"], workspace_id, payload.page_id, payload.body))
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/posts/{post_id}/schedule", status_code=status.HTTP_201_CREATED)
@@ -552,3 +579,10 @@ def delete_media(workspace_id: str, media_id: str, user: dict[str, str] = Depend
     deleted = operation(lambda: service().delete_media(user["id"], workspace_id, media_id))
     media_storage().delete(deleted["storage_path"])
     return {"status": "deleted", "id": deleted["id"]}
+    directory = Path(os.environ.get("AUTOFB_MEDIA_DIR", "media")) / workspace_id
+    directory.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(file.filename or "upload").name
+    storage_path = directory / f"{uuid.uuid4()}-{safe_name}"
+    with storage_path.open("wb") as target:
+        shutil.copyfileobj(file.file, target)
+    return operation(lambda: service().register_media(user["id"], workspace_id, safe_name, str(storage_path), file.content_type or "application/octet-stream", storage_path.stat().st_size))

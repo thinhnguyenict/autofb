@@ -1,4 +1,5 @@
 .PHONY: backup-db backup-offsite bootstrap check cleanup-db compile create-admin import-excel migrate-media-s3 pilot-acceptance preflight restore-db restore-drill rotate-token-key screenshot smoke test whitespace worker-once
+.PHONY: bootstrap check compile screenshot smoke test whitespace worker-once
 
 PYTHON ?= python3
 AUTOFB_DASHBOARD_URL ?= http://127.0.0.1:8001
