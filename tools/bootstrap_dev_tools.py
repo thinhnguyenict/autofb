@@ -17,6 +17,9 @@ def run(command: list[str]) -> None:
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
+    requirements = root / "requirements-dev.txt"
+    run([sys.executable, "-m", "pip", "install", "-r", str(requirements)])
+    run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"])
     requirements = root / "reqs.txt"
     run([sys.executable, "-m", "pip", "install", "-r", str(requirements)])
     run([sys.executable, "-m", "playwright", "install", "chromium"])

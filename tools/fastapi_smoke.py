@@ -25,6 +25,10 @@ def _fastapi_smoke(database_path: Path) -> None:
     health.raise_for_status()
     assert health.json() == {"status": "ok"}
 
+    ready = client.get("/readyz")
+    ready.raise_for_status()
+    assert ready.json()["status"] == "ready"
+
     register = client.post(
         "/api/v1/auth/register",
         json={"email": "smoke@example.com", "password": "a-very-strong-password", "display_name": "Smoke"},

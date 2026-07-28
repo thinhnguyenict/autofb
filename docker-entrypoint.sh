@@ -8,6 +8,11 @@ if [ "${AUTOFB_SERVICE:-dashboard}" = "api" ]; then
 fi
 
 if [ "${AUTOFB_SERVICE:-dashboard}" = "worker" ]; then
+  exec python3 -c 'from autofb.web.database import Database; from autofb.web.worker import PublishWorker; import os; db = Database(os.environ["AUTOFB_DATABASE_PATH"]); db.initialize(); PublishWorker(db).run_forever(int(os.environ.get("AUTOFB_WORKER_POLL_SECONDS", "60")))'
+fi
+
+if [ "${AUTOFB_SERVICE:-dashboard}" = "backup" ]; then
+  exec python3 tools/offsite_backup.py --interval-seconds "${AUTOFB_BACKUP_INTERVAL_SECONDS:-86400}"
   exec python3 -c 'from autofb.web.database import Database; from autofb.web.worker import PublishWorker; import os; PublishWorker(Database(os.environ["AUTOFB_DATABASE_PATH"])).run_forever(int(os.environ.get("AUTOFB_WORKER_POLL_SECONDS", "60")))'
 fi
 

@@ -71,6 +71,14 @@ class MetaOAuth:
     def decrypt(self, value: str) -> str:
         return self.cipher.decrypt(value.encode()).decode()
 
+    def inspect_access_token(self, encrypted_access_token: str) -> dict[str, str | bool]:
+        """Verify a stored token against Meta without returning the token."""
+        access_token = self.decrypt(encrypted_access_token)
+        profile = self._get("/me", {"fields": "id,name", "access_token": access_token})
+        provider_user_id = str(profile.get("id", ""))
+        if not provider_user_id:
+            raise OAuthError("Meta token check did not return a user identity")
+        return {"valid": True, "provider_user_id": provider_user_id, "display_name": str(profile.get("name", "Facebook user"))}
     def encrypt(self, value: str) -> str:
         return self.cipher.encrypt(value.encode()).decode()
 

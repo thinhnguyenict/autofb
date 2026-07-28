@@ -39,6 +39,22 @@ are never returned by the browser API.
 6. **Production readiness**: notifications, metrics, error tracking, backups,
    CI/CD, privacy/data deletion procedures and security review.
 
+## Current progress (2026-07-25)
+
+| Phase | Status | Remaining production work |
+| --- | --- | --- |
+| Foundation and security | Complete for the SQLite MVP | Rotate any historical provider credentials and complete an external security review. Atomic Fernet key rotation and durable login throttling are implemented. |
+| Identity and tenancy | MVP complete | Replace SQLite with PostgreSQL migrations before horizontal scaling. |
+| Meta connections | MVP complete | Configure and review the production Meta app. Live Graph API token diagnostics are implemented. |
+| Content operations | MVP complete | Configure the production S3/MinIO bucket and lifecycle policy. Local and S3-compatible storage, approval workflow, monthly calendar and one-time Excel importer are implemented. |
+| Reliable delivery | In progress | Add a shared queue, distributed rate limiting and provider-supported idempotency. Repeated requests reuse one queued job; bounded/paced batches and Meta Retry-After handling protect a single worker. |
+| Production readiness | MVP complete | Configure the production alert receivers and complete an external security review. Secret-free hosted error and backup webhooks, restore gates, JSON logging, data export/erasure, worker monitoring and bounded operational-record cleanup are implemented. |
+
+The current release is suitable for a controlled single-VPS pilot after Meta OAuth
+credentials and HTTPS are configured, `make preflight` passes, and the external
+`make pilot-acceptance URL=https://your-host` gate succeeds. It is not yet
+the final horizontally scaled production architecture described above.
+
 ## Initial data model
 
 - `users`, `workspaces`, `workspace_members`, `audit_logs`

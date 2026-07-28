@@ -1,0 +1,37 @@
+import subprocess
+import unittest
+from pathlib import Path
+
+
+SCRIPT = Path(__file__).parents[1] / "deploy" / "install_ubuntu_24_04.sh"
+
+
+class InteractiveInstallerTests(unittest.TestCase):
+    def shell(self, expression):
+        return subprocess.run(
+            ["bash", "-c", f"source {SCRIPT!s}; {expression}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_domain_validation(self):
+        self.assertEqual(self.shell("validate_domain tool.example.com").returncode, 0)
+        for value in ("https://tool.example.com", "localhost", "bad_domain.example.com", "-bad.example"):
+            with self.subTest(value=value):
+                self.assertNotEqual(self.shell(f"validate_domain {value!r}").returncode, 0)
+
+    def test_port_validation(self):
+        for value in ("1024", "8001", "65535"):
+            self.assertEqual(self.shell(f"validate_port {value}").returncode, 0)
+        for value in ("80", "0", "65536", "not-a-port"):
+            self.assertNotEqual(self.shell(f"validate_port {value}").returncode, 0)
+
+    def test_sourcing_installer_does_not_execute_installation(self):
+        result = self.shell("printf loaded")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "loaded")
+
+
+if __name__ == "__main__":
+    unittest.main()

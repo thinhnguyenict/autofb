@@ -40,3 +40,33 @@ def new_session_token() -> str:
 
 def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def http_security_headers(path: str, *, enable_hsts: bool = False) -> dict[str, str]:
+    """Return restrictive headers for API, dashboard, and static responses."""
+    sensitive = path.startswith("/api/") or path in {"/healthz", "/readyz", "/workerz", "/backupz"}
+    if path in {"/docs", "/redoc"}:
+        content_policy = (
+            "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https://fastapi.tiangolo.com"
+        )
+    else:
+        content_policy = (
+            "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; "
+            "form-action 'self'; object-src 'none'; script-src 'self'; style-src 'self'; "
+            "connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:"
+        )
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "same-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Content-Security-Policy": content_policy,
+        "Cache-Control": "no-store" if sensitive else ("public, max-age=3600" if path.startswith("/static/") else "no-cache"),
+    }
+    if enable_hsts:
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return headers

@@ -42,6 +42,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS auth_login_attempts (
+    email_hash TEXT PRIMARY KEY,
+    failed_count INTEGER NOT NULL,
+    window_started_at TEXT NOT NULL,
+    locked_until TEXT,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
@@ -78,6 +85,13 @@ CREATE TABLE IF NOT EXISTS facebook_pages (
     created_at TEXT NOT NULL,
     UNIQUE(workspace_id, facebook_page_id)
 );
+CREATE TABLE IF NOT EXISTS token_health_checks (
+    id TEXT PRIMARY KEY,
+    connection_id TEXT NOT NULL REFERENCES oauth_connections(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('valid', 'invalid')),
+    detail TEXT,
+    checked_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS media_assets (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -113,6 +127,15 @@ CREATE TABLE IF NOT EXISTS post_media (
     sort_order INTEGER NOT NULL,
     PRIMARY KEY (post_id, media_asset_id)
 );
+CREATE TABLE IF NOT EXISTS post_approvals (
+    post_id TEXT PRIMARY KEY REFERENCES posts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected')),
+    requested_by TEXT NOT NULL REFERENCES users(id),
+    reviewed_by TEXT REFERENCES users(id),
+    comment TEXT,
+    requested_at TEXT NOT NULL,
+    reviewed_at TEXT
+);
 CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     post_id TEXT NOT NULL UNIQUE REFERENCES posts(id) ON DELETE CASCADE,
@@ -130,6 +153,35 @@ CREATE TABLE IF NOT EXISTS publish_jobs (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS publish_results (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL REFERENCES publish_jobs(id) ON DELETE CASCADE,
+    post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    status TEXT NOT NULL CHECK(status IN ('succeeded', 'failed')),
+    attempt INTEGER NOT NULL,
+    remote_post_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS worker_heartbeats (
+    worker_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK(status IN ('running', 'idle', 'error')),
+    last_error TEXT,
+    last_seen_at TEXT NOT NULL,
+    started_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS backup_runs (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK(status IN ('succeeded', 'failed')),
+    filename TEXT,
+    sha256 TEXT,
+    error_type TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS publish_jobs_ready ON publish_jobs(status, run_at);
+CREATE INDEX IF NOT EXISTS publish_results_post ON publish_results(post_id, created_at);
+CREATE INDEX IF NOT EXISTS token_health_connection ON token_health_checks(connection_id, checked_at);
+CREATE INDEX IF NOT EXISTS auth_login_attempts_updated ON auth_login_attempts(updated_at);
 CREATE INDEX IF NOT EXISTS publish_jobs_ready ON publish_jobs(status, run_at);
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
 """
