@@ -1,6 +1,8 @@
 services:
   autofb:
     build: .
+    profiles:
+      - legacy
     ports:
       - "8000:8000"
     environment:
@@ -13,3 +15,78 @@ services:
       - ./videos:/app/videos
       - ./output:/app/output
     restart: unless-stopped
+
+  autofb-worker:
+    build: .
+    environment:
+      AUTOFB_SERVICE: worker
+      AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+      AUTOFB_MEDIA_DIR: /var/lib/autofb/media
+      AUTOFB_MEDIA_MAX_BYTES: "104857600"
+      AUTOFB_MEDIA_BACKEND: "${AUTOFB_MEDIA_BACKEND:-local}"
+      AUTOFB_S3_BUCKET: "${AUTOFB_S3_BUCKET:-}"
+      AUTOFB_S3_PREFIX: "${AUTOFB_S3_PREFIX:-autofb-media}"
+      AUTOFB_S3_ENDPOINT_URL: "${AUTOFB_S3_ENDPOINT_URL:-}"
+      AUTOFB_S3_REGION: "${AUTOFB_S3_REGION:-}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
+      AUTOFB_WORKER_POLL_SECONDS: "30"
+      AUTOFB_WORKER_BATCH_SIZE: "10"
+      AUTOFB_WORKER_MIN_PUBLISH_INTERVAL_SECONDS: "1"
+      AUTOFB_WORKER_ID: "compose-worker"
+    volumes:
+      - autofb_api_data:/var/lib/autofb
+    restart: unless-stopped
+
+  autofb-api:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      AUTOFB_SERVICE: api
+      PORT: "8001"
+      AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+      AUTOFB_MEDIA_DIR: /var/lib/autofb/media
+      AUTOFB_MEDIA_MAX_BYTES: "104857600"
+      AUTOFB_MEDIA_BACKEND: "${AUTOFB_MEDIA_BACKEND:-local}"
+      AUTOFB_S3_BUCKET: "${AUTOFB_S3_BUCKET:-}"
+      AUTOFB_S3_PREFIX: "${AUTOFB_S3_PREFIX:-autofb-media}"
+      AUTOFB_S3_ENDPOINT_URL: "${AUTOFB_S3_ENDPOINT_URL:-}"
+      AUTOFB_S3_REGION: "${AUTOFB_S3_REGION:-}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-}"
+      AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
+      AUTOFB_ENABLE_HSTS: "${AUTOFB_ENABLE_HSTS:-0}"
+      AUTOFB_ERROR_WEBHOOK_URL: "${AUTOFB_ERROR_WEBHOOK_URL:-}"
+      AUTOFB_ERROR_WEBHOOK_TOKEN: "${AUTOFB_ERROR_WEBHOOK_TOKEN:-}"
+    volumes:
+      - autofb_api_data:/var/lib/autofb
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  autofb-backup:
+    build: .
+    profiles:
+      - backup
+    environment:
+      AUTOFB_SERVICE: backup
+      AUTOFB_DATABASE_PATH: /var/lib/autofb/autofb.db
+      AUTOFB_BACKUP_DIRECTORY: /var/lib/autofb/backups
+      AUTOFB_BACKUP_KEEP: "7"
+      AUTOFB_BACKUP_INTERVAL_SECONDS: "86400"
+      AUTOFB_OFFSITE_BACKUP_URL: "${AUTOFB_OFFSITE_BACKUP_URL:-}"
+      AUTOFB_OFFSITE_BACKUP_TOKEN: "${AUTOFB_OFFSITE_BACKUP_TOKEN:-}"
+      AUTOFB_BACKUP_ALERT_URL: "${AUTOFB_BACKUP_ALERT_URL:-}"
+      AUTOFB_BACKUP_ALERT_TOKEN: "${AUTOFB_BACKUP_ALERT_TOKEN:-}"
+    volumes:
+      - autofb_api_data:/var/lib/autofb
+    restart: unless-stopped
+
+volumes:
+  autofb_api_data:
