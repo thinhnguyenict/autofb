@@ -13,6 +13,7 @@ VIDEO_FOLDER = './videos'
 # Graph API v22.0
 API_VERSION = "v22.0"
 GRAPH_URL = f'https://graph.facebook.com/{API_VERSION}'
+REQUEST_TIMEOUT = 120
 
 # Cấu hình logging
 logger = logging.getLogger()
@@ -41,7 +42,8 @@ def upload_reel(page_id, caption, access_token, video_path, excel_file):
     }
 
     try:
-        start_res = requests.post(start_url, data=start_payload)
+        start_res = requests.post(start_url, data=start_payload, timeout=REQUEST_TIMEOUT)
+        start_res.raise_for_status()
         start_data = start_res.json()
         logger.debug(f"Start response: {start_data}")
 
@@ -58,11 +60,8 @@ def upload_reel(page_id, caption, access_token, video_path, excel_file):
 
         upload_res = requests.post(upload_url, data=video_bytes, headers={
             'Content-Type': 'application/octet-stream'
-        })
-
-        if upload_res.status_code != 200:
-            logger.error(f"Lỗi upload video lên upload_url: {upload_res.text}")
-            return
+        }, timeout=REQUEST_TIMEOUT)
+        upload_res.raise_for_status()
 
         # STEP 3: Finish phase
         finish_payload = {
@@ -72,7 +71,8 @@ def upload_reel(page_id, caption, access_token, video_path, excel_file):
             "access_token": access_token
         }
 
-        finish_res = requests.post(start_url, data=finish_payload)
+        finish_res = requests.post(start_url, data=finish_payload, timeout=REQUEST_TIMEOUT)
+        finish_res.raise_for_status()
         finish_data = finish_res.json()
         logger.debug(f"Finish response: {finish_data}")
 
@@ -85,8 +85,10 @@ def upload_reel(page_id, caption, access_token, video_path, excel_file):
         else:
             logger.error(f"Lỗi khi kết thúc upload Reels: {finish_data}")
 
-    except Exception as e:
-        logger.error(f"Lỗi tổng quát khi upload Reels: {str(e)}")
+    except requests.RequestException as e:
+        logger.error(f"Lỗi request khi upload Reels: {str(e)}")
+    except ValueError as e:
+        logger.error(f"Lỗi parse JSON khi upload Reels: {str(e)}")
 
 
 def main():

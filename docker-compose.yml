@@ -35,6 +35,7 @@ services:
       AUTOFB_WORKER_BATCH_SIZE: "10"
       AUTOFB_WORKER_MIN_PUBLISH_INTERVAL_SECONDS: "1"
       AUTOFB_WORKER_ID: "compose-worker"
+      AUTOFB_WORKER_POLL_SECONDS: "30"
     volumes:
       - autofb_api_data:/var/lib/autofb
     restart: unless-stopped

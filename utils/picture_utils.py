@@ -389,8 +389,13 @@ def upload_picture(img_file):
         "key": imgbb_api_key,
         "image": img_base64
         }
-    response = requests.post(api_url, data=payload).json()
-    uploaded_url = response['data']['url']
+    response = requests.post(api_url, data=payload, timeout=60)
+    response.raise_for_status()
+    try:
+        response_data = response.json()
+    except ValueError as exc:
+        raise RuntimeError("imgbb upload returned a non-JSON response") from exc
+    uploaded_url = response_data['data']['url']
     logging.info("uploaded_url " + uploaded_url)
 
     return uploaded_url

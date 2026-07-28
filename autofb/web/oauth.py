@@ -79,6 +79,8 @@ class MetaOAuth:
         if not provider_user_id:
             raise OAuthError("Meta token check did not return a user identity")
         return {"valid": True, "provider_user_id": provider_user_id, "display_name": str(profile.get("name", "Facebook user"))}
+    def encrypt(self, value: str) -> str:
+        return self.cipher.encrypt(value.encode()).decode()
 
     def _get(self, path: str, params: dict[str, str]) -> dict:
         response = httpx.get(self.base_url + path, params=params, timeout=20)

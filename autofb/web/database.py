@@ -182,6 +182,7 @@ CREATE INDEX IF NOT EXISTS publish_jobs_ready ON publish_jobs(status, run_at);
 CREATE INDEX IF NOT EXISTS publish_results_post ON publish_results(post_id, created_at);
 CREATE INDEX IF NOT EXISTS token_health_connection ON token_health_checks(connection_id, checked_at);
 CREATE INDEX IF NOT EXISTS auth_login_attempts_updated ON auth_login_attempts(updated_at);
+CREATE INDEX IF NOT EXISTS publish_jobs_ready ON publish_jobs(status, run_at);
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);
 """
 
