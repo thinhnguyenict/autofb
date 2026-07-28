@@ -27,6 +27,3 @@ def comment_on_post(post_id, message, link, access_token):
         print("Comment posted successfully.")
     else:
         print("Error posting comment:", response.json())
-
-# message, link = random_comment_from_excel("./data.xlsx")
-# comment_on_post("471948829668444_890934523046722", message, link, "EAAOZCt57jvjsBOZCabpiKsseXAQcUXdQ7acBV1xsjTZABZCFVWjRu4FO0vZACJpKjehvGtjsHtFIHvgPJIlngCx2ZArHLnp7O6kRQVXxvZCdLcoVSzyJzWVeLhctfa1zSlNhI8q6ih441EfmBkGxYM1I0mCm6VOwhbdxMzbWPG3JSYosIAPHRSQNRWZAoZBjCKE4m")

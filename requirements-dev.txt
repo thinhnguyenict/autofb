@@ -1,0 +1,7 @@
+cryptography==42.0.8
+fastapi==0.111.0
+httpx==0.26.0
+openpyxl==3.1.2
+playwright==1.45.0
+python-multipart==0.0.9
+uvicorn==0.30.1

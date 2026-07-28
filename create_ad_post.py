@@ -1,4 +1,7 @@
-import json, random, logging
+import json
+import random
+import logging
+from autofb.config import ConfigError, load_config
 from utils import picture_utils, ad_post_utils
 
 API_VERSION = "v25.0"
@@ -7,27 +10,21 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s:%(message)s',
     level=logging.INFO)
 
-with open('./config.json') as f:
-    config = json.load(f)
-
-excel_file = config['excel']['path']
-access_token = config['pages']['access_token']
-page_id = config['pages']['page_id']
-page_name = config['pages']['page_name']
-act_id = config['pages']['act_id']
-
 
 def main():
-    for page, name, token in zip(page_id, page_name, access_token):
-        print(page, name, token)
+    config = load_config()
+    if not config.pages.page_names:
+        raise ConfigError("pages.page_name is required for ad publishing")
+    for page, name, token in zip(config.pages.page_ids, config.pages.page_names, config.pages.access_tokens, strict=True):
+        logging.info("Preparing ad post for page %s (%s)", name, page)
         
         # random link for each page
         # fetch content from prepared excel file
         try:
-            message, link, img_path, cell_index = ad_post_utils.read_excel(excel_file)
+            message, link, img_path, cell_index = ad_post_utils.read_excel(config.excel.path)
             print (message, link, img_path, cell_index)
         except TypeError:
-            print(f"All posts are  published. \nPlease prepare the data again. File path: {excel_file}")
+            print(f"All posts are  published. \nPlease prepare the data again. File path: {config.excel.path}")
             quit()
 
         # TODO: choose types
@@ -47,7 +44,7 @@ def main():
         # get ad post id and publish post
         ad_post_data = json.loads(
             ad_post_utils.create_ad_post(
-                img_url, message, link, page, token, act_id, api_version=API_VERSION
+                img_url, message, link, page, token, config.pages.act_id, api_version=API_VERSION
             )
         )
         ad_post_id = ad_post_data["id"]
@@ -58,8 +55,12 @@ def main():
         )
         print(effective_object_story_id)
         ad_post_utils.publish_ad_post(token, effective_object_story_id, api_version=API_VERSION)
-        ad_post_utils.update_publish_status(excel_file, cell_index)
+        ad_post_utils.update_publish_status(config.excel.path, cell_index)
         print(f"Done publishing post to {name} page")
 
-if __name__ ==  "__main__":
-    main()
+if __name__ == "__main__":
+    try:
+        main()
+    except ConfigError as exc:
+        logging.error("Invalid configuration: %s", exc)
+        raise SystemExit(2)
