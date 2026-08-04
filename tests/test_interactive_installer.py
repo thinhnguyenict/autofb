@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).parents[1] / "deploy" / "install_ubuntu_24_04.sh"
 REPOSITORY_INSTALLER = Path(__file__).parents[1] / "deploy" / "aapanel_ubuntu_24_04.sh"
+COMPOSE_FILE = Path(__file__).parents[1] / "docker-compose.yml"
 
 
 class InteractiveInstallerTests(unittest.TestCase):
@@ -116,6 +118,22 @@ class InteractiveInstallerTests(unittest.TestCase):
             self.assertEqual((app_dir / "existing-site-file.txt").read_text(), "keep me\n")
             self.assertTrue((app_dir / "Dockerfile").is_file())
             self.assertTrue((app_dir / ".git").is_dir())
+
+    def test_compose_file_has_no_duplicate_mapping_keys(self):
+        stack = []
+        seen = set()
+        for line_number, line in enumerate(COMPOSE_FILE.read_text().splitlines(), 1):
+            match = re.match(r"^(\s*)([A-Za-z0-9_.-]+):(?:\s|$)", line)
+            if not match:
+                continue
+            indent = len(match.group(1))
+            key = match.group(2)
+            while stack and indent <= stack[-1][0]:
+                stack.pop()
+            location = (tuple(parent_key for _, parent_key in stack), key)
+            self.assertNotIn(location, seen, f"duplicate mapping key {key!r} on line {line_number}")
+            seen.add(location)
+            stack.append((indent, key))
 
 
 if __name__ == "__main__":
