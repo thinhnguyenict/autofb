@@ -79,6 +79,44 @@ class InteractiveInstallerTests(unittest.TestCase):
             self.assertEqual(override.count('"127.0.0.1:8123:8001"'), 1)
             self.assertNotIn("cat > docker-compose.override.yml", override)
 
+    def test_repository_installer_preserves_existing_web_root(self):
+        with tempfile.TemporaryDirectory() as working_dir:
+            working_path = Path(working_dir)
+            repository = working_path / "repository"
+            app_dir = working_path / "web-root"
+            repository.mkdir()
+            app_dir.mkdir()
+            (repository / "Dockerfile").write_text("FROM scratch\n")
+            (app_dir / "existing-site-file.txt").write_text("keep me\n")
+            subprocess.run(["git", "init", "-q", repository], check=True)
+            subprocess.run(["git", "-C", repository, "add", "Dockerfile"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", repository,
+                    "-c", "user.name=Installer Test",
+                    "-c", "user.email=installer@example.com",
+                    "commit", "-qm", "fixture",
+                ],
+                check=True,
+            )
+            expression = (
+                f"source {REPOSITORY_INSTALLER!s}; "
+                f"APP_DIR={str(app_dir)!r}; REPO_URL={str(repository)!r}; "
+                "checkout_or_update_repo"
+            )
+
+            result = subprocess.run(
+                ["bash", "-c", expression],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((app_dir / "existing-site-file.txt").read_text(), "keep me\n")
+            self.assertTrue((app_dir / "Dockerfile").is_file())
+            self.assertTrue((app_dir / ".git").is_dir())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -82,7 +82,7 @@ install_system_packages() {
   log "Installing system packages and Docker Compose plugin"
   run apt-get update
 
-  local common_packages=(ca-certificates curl git make ufw)
+  local common_packages=(ca-certificates curl git make rsync ufw)
   run apt-get install -y "${common_packages[@]}"
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -118,7 +118,20 @@ checkout_or_update_repo() {
     return
   fi
   if [ -n "$REPO_URL" ]; then
-    run git clone "$REPO_URL" "$APP_DIR"
+    if [ ! -d "$APP_DIR" ] || [ -z "$(find "$APP_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+      run git clone "$REPO_URL" "$APP_DIR"
+      return
+    fi
+
+    local clone_dir
+    clone_dir="$(mktemp -d)"
+    log "$APP_DIR is not empty; preserving its existing files while adding the AutoFB checkout."
+    if ! run git clone "$REPO_URL" "$clone_dir/repository"; then
+      rm -rf -- "$clone_dir"
+      return 1
+    fi
+    run rsync -a "$clone_dir/repository/" "$APP_DIR/"
+    rm -rf -- "$clone_dir"
     return
   fi
   if [ -f "docker-compose.yml" ] && [ -f "Dockerfile" ]; then
@@ -343,4 +356,6 @@ main() {
   bootstrap_admin_if_configured
   print_next_steps
 }
-main "$@"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+  main "$@"
+fi
