@@ -32,6 +32,18 @@ class InteractiveInstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "loaded")
 
+    def test_installer_supports_curl_command_substitution(self):
+        result = subprocess.run(
+            ["bash", "-c", SCRIPT.read_text()],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("BASH_SOURCE", result.stderr)
+        self.assertIn("Error:", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
