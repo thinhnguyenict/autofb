@@ -1,5 +1,4 @@
 """Capture a real dashboard screenshot with a temporary local API when needed."""
-"""Capture a dashboard screenshot, with a dependency-free fallback artifact."""
 from __future__ import annotations
 
 import importlib.util
@@ -17,9 +16,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-import struct
-import zlib
-from pathlib import Path
 
 
 def _png_chunk(kind: bytes, payload: bytes) -> bytes:
@@ -45,7 +41,6 @@ def _write_fallback_png(output: Path) -> None:
         rows.append(bytes(row))
     output.write_bytes(header + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", zlib.compress(b"".join(rows))) + _png_chunk(b"IEND", b""))
     print(f"Fallback dashboard artifact written to {output}")
-    print(f"Playwright is not installed; wrote fallback dashboard artifact to {output}")
 
 
 def _capture_with_playwright(url: str, output: Path) -> None:
@@ -56,7 +51,6 @@ def _capture_with_playwright(url: str, output: Path) -> None:
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         page.goto(url, wait_until="networkidle", timeout=30_000)
         page.locator("h1").wait_for(state="visible")
-        page.goto(url, wait_until="networkidle")
         page.screenshot(path=str(output), full_page=True)
         browser.close()
     print(f"Saved dashboard screenshot to {output}")
@@ -124,9 +118,6 @@ def main() -> None:
         raise SystemExit("Playwright is required for screenshots. Run `make bootstrap`, then retry.")
     with _dashboard_server(url):
         _capture_with_playwright(url, output)
-        _write_fallback_png(output)
-        return
-    _capture_with_playwright(url, output)
 
 
 if __name__ == "__main__":
