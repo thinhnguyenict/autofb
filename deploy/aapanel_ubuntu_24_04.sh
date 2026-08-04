@@ -255,6 +255,15 @@ YAML
       - "127.0.0.1:8000:8000"
 YAML
 }
+validate_python_sources() {
+  if [ "$DRY_RUN" = "1" ] && [ ! -d "$APP_DIR" ]; then
+    return
+  fi
+  cd "$APP_DIR"
+  log "Validating Python source syntax before Docker startup"
+  run python3 -m compileall -q autofb tools
+}
+
 build_and_start() {
   log "Building and starting AutoFB API + worker"
   if [ "$DRY_RUN" = "1" ] && [ ! -d "$APP_DIR" ]; then
@@ -262,6 +271,7 @@ build_and_start() {
     return
   fi
   cd "$APP_DIR"
+  validate_python_sources
   backup_url="$(sed -n 's/^AUTOFB_OFFSITE_BACKUP_URL=//p' .env | tail -n 1)"
   if [ -n "$backup_url" ]; then
     run docker compose --profile backup up -d --build autofb-api autofb-worker autofb-backup

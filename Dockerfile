@@ -24,6 +24,7 @@ COPY reqs.txt /tmp/reqs.txt
 RUN pip install -r /tmp/reqs.txt
 
 COPY . .
+RUN python -m compileall -q autofb tools
 COPY docker-entrypoint.sh /usr/local/bin/autofb-entrypoint
 RUN chmod +x /usr/local/bin/autofb-entrypoint
 
