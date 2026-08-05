@@ -1,9 +1,146 @@
 <!doctype html>
 <html lang="vi">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AutoFB</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><main><header><h1>AutoFB</h1><p>Quản lý workspace, Fanpage và lịch đăng.</p></header>
-<section id="auth"><h2>Đăng nhập</h2><form id="login"><input id="email" type="email" placeholder="Email" required><input id="password" type="password" placeholder="Mật khẩu" required minlength="12"><button>Đăng nhập</button></form><p>Chưa có tài khoản? <button id="register" class="link" type="button">Tạo tài khoản</button></p></section>
-<section id="app" hidden><div class="toolbar"><strong id="who"></strong><button id="rename-profile" type="button">Đổi tên hiển thị</button><button id="delete-account" type="button">Xóa tài khoản</button><button id="logout">Đăng xuất</button></div><details><summary>Đổi mật khẩu</summary><form id="password"><input id="current-password" type="password" placeholder="Mật khẩu hiện tại" required><input id="new-password" type="password" placeholder="Mật khẩu mới" required minlength="12"><button>Đổi mật khẩu</button></form></details><div class="grid"><article><h2>Workspace</h2><form id="workspace"><input id="workspace-name" placeholder="Tên workspace" required><button>Tạo workspace</button></form><select id="workspaces"></select><button id="rename-workspace" type="button">Đổi tên workspace</button><button id="export-workspace" type="button">Xuất dữ liệu</button><button id="delete-workspace" type="button">Xóa workspace</button><div id="summary"></div><div id="oauth-status"></div><button id="connect">Kết nối Facebook</button><details><summary>Nhập Page token thủ công</summary><form id="manual-page"><input id="manual-page-id" placeholder="Facebook Page ID" required><input id="manual-page-name" placeholder="Tên Fanpage" required><input id="manual-page-token" type="password" placeholder="Page access token" required><input id="manual-page-expires" placeholder="Hạn token (tuỳ chọn, ISO)"><button>Thêm Fanpage</button></form></details><div id="pages"></div><h3>Thành viên</h3><form id="member"><input id="member-email" type="email" placeholder="Email thành viên" required><select id="member-role"><option value="publisher">publisher</option><option value="editor">editor</option><option value="admin">admin</option><option value="viewer">viewer</option></select><button>Thêm/cập nhật</button></form><div id="members"></div><h3>Kết nối & thông báo</h3><div id="connections"></div><button id="mark-read" type="button">Đánh dấu thông báo đã đọc</button><button id="clear-read" type="button">Xóa thông báo đã đọc</button><div id="notifications"></div><h3>Nhật ký quản trị</h3><div id="audit-logs"></div></article><article><h2>Lên lịch bài viết</h2><label>Lọc bài viết <select id="post-status-filter"><option value="">Tất cả</option><option value="draft">Nháp</option><option value="scheduled">Đã lên lịch</option><option value="queued">Đang chờ</option><option value="published">Đã đăng</option><option value="failed">Lỗi</option></select></label><button id="export-posts" type="button">Xuất CSV</button><form id="media" enctype="multipart/form-data"><input id="media-file" type="file" accept="image/jpeg,image/png,video/mp4"><button>Tải media</button></form><div id="media-list"></div><form id="post"><select id="page" required></select><textarea id="body" placeholder="Nội dung bài viết" required></textarea><fieldset><legend>Media đính kèm</legend><div id="media-options"></div></fieldset><input id="scheduled" type="datetime-local" required><button>Tạo và lên lịch</button><button id="publish-now" type="button">Tạo và đăng ngay</button></form><div id="posts"></div><h3>Lịch nội dung</h3><label>Tháng <input id="calendar-month" type="month"></label><div id="calendar"></div><h3>Hàng đợi publish</h3><div id="publish-metrics"></div><div id="publish-jobs"></div><h3>Kết quả publish</h3><div id="publish-results"></div></article></div></section><p id="message" role="alert"></p></main><script src="/static/app.js?v=20260725-meta-diagnostics"></script></body></html>
-<section id="auth"><h2>Đăng nhập</h2><form id="login"><input id="email" type="email" placeholder="Email" required><input id="password" type="password" placeholder="Mật khẩu" required minlength="12"><button>Đăng nhập</button></form><p>Chưa có tài khoản? <button id="register" class="link">Tạo tài khoản</button></p></section>
-<section id="app" hidden><div class="toolbar"><strong id="who"></strong><button id="logout">Đăng xuất</button></div><div class="grid"><article><h2>Workspace</h2><form id="workspace"><input id="workspace-name" placeholder="Tên workspace" required><button>Tạo workspace</button></form><select id="workspaces"></select><button id="connect">Kết nối Facebook</button><div id="pages"></div><h3>Thành viên</h3><form id="member"><input id="member-email" type="email" placeholder="Email thành viên" required><select id="member-role"><option value="publisher">publisher</option><option value="editor">editor</option><option value="admin">admin</option><option value="viewer">viewer</option></select><button>Thêm/cập nhật</button></form><div id="members"></div><h3>Kết nối & thông báo</h3><div id="connections"></div><button id="mark-read" type="button">Đánh dấu thông báo đã đọc</button><div id="notifications"></div><h3>Nhật ký quản trị</h3><div id="audit-logs"></div></article><article><h2>Lên lịch bài viết</h2><form id="media" enctype="multipart/form-data"><input id="media-file" type="file" accept="image/jpeg,image/png,video/mp4"><button>Tải media</button></form><div id="media-list"></div><form id="post"><select id="page" required></select><textarea id="body" placeholder="Nội dung bài viết" required></textarea><fieldset><legend>Media đính kèm</legend><div id="media-options"></div></fieldset><input id="scheduled" type="datetime-local" required><button>Tạo và lên lịch</button></form><div id="posts"></div></article></div></section><p id="message" role="alert"></p></main><script src="/static/app.js"></script></body></html>
-<section id="app" hidden><div class="toolbar"><strong id="who"></strong><button id="logout">Đăng xuất</button></div><div class="grid"><article><h2>Workspace</h2><form id="workspace"><input id="workspace-name" placeholder="Tên workspace" required><button>Tạo workspace</button></form><select id="workspaces"></select><button id="connect">Kết nối Facebook</button><div id="pages"></div><h3>Thành viên</h3><form id="member"><input id="member-email" type="email" placeholder="Email thành viên" required><select id="member-role"><option value="publisher">publisher</option><option value="editor">editor</option><option value="admin">admin</option><option value="viewer">viewer</option></select><button>Thêm/cập nhật</button></form><div id="members"></div><h3>Kết nối & thông báo</h3><div id="connections"></div><button id="mark-read" type="button">Đánh dấu thông báo đã đọc</button><div id="notifications"></div><h3>Nhật ký quản trị</h3><div id="audit-logs"></div></article><article><h2>Lên lịch bài viết</h2><form id="media" enctype="multipart/form-data"><input id="media-file" type="file" accept="image/jpeg,image/png,video/mp4"><button>Tải media</button></form><div id="media-list"></div><form id="post"><select id="page" required></select><textarea id="body" placeholder="Nội dung bài viết" required></textarea><fieldset><legend>Media đính kèm</legend><div id="media-options"></div></fieldset><input id="scheduled" type="datetime-local" required><button>Tạo và lên lịch</button></form><div id="posts"></div><h3>Hàng đợi publish</h3><div id="publish-jobs"></div></article></div></section><p id="message" role="alert"></p></main><script src="/static/app.js"></script></body></html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AutoFB</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260805-ui-repair">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>AutoFB</h1>
+      <p>Quản lý workspace, Fanpage và lịch đăng.</p>
+    </header>
+
+    <section id="auth">
+      <h2>Đăng nhập</h2>
+      <form id="login">
+        <input id="email" type="email" placeholder="Email" required>
+        <input id="password" type="password" placeholder="Mật khẩu" required minlength="12">
+        <button>Đăng nhập</button>
+      </form>
+      <p>Chưa có tài khoản? <button id="register" class="link" type="button">Tạo tài khoản</button></p>
+    </section>
+
+    <section id="app" hidden>
+      <div class="toolbar">
+        <strong id="who"></strong>
+        <span class="toolbar-actions">
+          <button id="rename-profile" type="button">Đổi tên hiển thị</button>
+          <button id="delete-account" type="button">Xóa tài khoản</button>
+          <button id="logout" type="button">Đăng xuất</button>
+        </span>
+      </div>
+
+      <details>
+        <summary>Đổi mật khẩu</summary>
+        <form id="password-form">
+          <input id="current-password" type="password" placeholder="Mật khẩu hiện tại" required>
+          <input id="new-password" type="password" placeholder="Mật khẩu mới" required minlength="12">
+          <button>Đổi mật khẩu</button>
+        </form>
+      </details>
+
+      <div class="grid">
+        <article>
+          <h2>Workspace</h2>
+          <form id="workspace">
+            <input id="workspace-name" placeholder="Tên workspace" required>
+            <button>Tạo workspace</button>
+          </form>
+          <select id="workspaces"></select>
+          <button id="rename-workspace" type="button">Đổi tên workspace</button>
+          <button id="export-workspace" type="button">Xuất dữ liệu</button>
+          <button id="delete-workspace" type="button">Xóa workspace</button>
+          <div id="summary"></div>
+          <div id="oauth-status"></div>
+          <button id="connect" type="button">Kết nối Facebook</button>
+
+          <details>
+            <summary>Nhập Page token thủ công</summary>
+            <form id="manual-page">
+              <input id="manual-page-id" placeholder="Facebook Page ID" required>
+              <input id="manual-page-name" placeholder="Tên Fanpage" required>
+              <input id="manual-page-token" type="password" placeholder="Page access token" required>
+              <input id="manual-page-expires" placeholder="Hạn token (tuỳ chọn, ISO)">
+              <button>Thêm Fanpage</button>
+            </form>
+          </details>
+          <div id="pages"></div>
+
+          <h3>Thành viên</h3>
+          <form id="member">
+            <input id="member-email" type="email" placeholder="Email thành viên" required>
+            <select id="member-role">
+              <option value="publisher">publisher</option>
+              <option value="editor">editor</option>
+              <option value="admin">admin</option>
+              <option value="viewer">viewer</option>
+            </select>
+            <button>Thêm/cập nhật</button>
+          </form>
+          <div id="members"></div>
+
+          <h3>Kết nối & thông báo</h3>
+          <div id="connections"></div>
+          <button id="mark-read" type="button">Đánh dấu thông báo đã đọc</button>
+          <button id="clear-read" type="button">Xóa thông báo đã đọc</button>
+          <div id="notifications"></div>
+
+          <h3>Nhật ký quản trị</h3>
+          <div id="audit-logs"></div>
+        </article>
+
+        <article>
+          <h2>Lên lịch bài viết</h2>
+          <label>Lọc bài viết
+            <select id="post-status-filter">
+              <option value="">Tất cả</option>
+              <option value="draft">Nháp</option>
+              <option value="scheduled">Đã lên lịch</option>
+              <option value="queued">Đang chờ</option>
+              <option value="published">Đã đăng</option>
+              <option value="failed">Lỗi</option>
+            </select>
+          </label>
+          <button id="export-posts" type="button">Xuất CSV</button>
+
+          <form id="media" enctype="multipart/form-data">
+            <input id="media-file" type="file" accept="image/jpeg,image/png,video/mp4">
+            <button>Tải media</button>
+          </form>
+          <div id="media-list"></div>
+
+          <form id="post">
+            <select id="page" required></select>
+            <textarea id="body" placeholder="Nội dung bài viết" required></textarea>
+            <fieldset>
+              <legend>Media đính kèm</legend>
+              <div id="media-options"></div>
+            </fieldset>
+            <input id="scheduled" type="datetime-local" required>
+            <button>Tạo và lên lịch</button>
+            <button id="publish-now" type="button">Tạo và đăng ngay</button>
+          </form>
+          <div id="posts"></div>
+
+          <h3>Lịch nội dung</h3>
+          <label>Tháng <input id="calendar-month" type="month"></label>
+          <div id="calendar"></div>
+
+          <h3>Hàng đợi publish</h3>
+          <div id="publish-metrics"></div>
+          <div id="publish-jobs"></div>
+
+          <h3>Kết quả publish</h3>
+          <div id="publish-results"></div>
+        </article>
+      </div>
+    </section>
+
+    <p id="message" role="alert"></p>
+  </main>
+  <script src="/static/app.js?v=20260805-ui-repair"></script>
+</body>
+</html>
