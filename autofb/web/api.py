@@ -6,7 +6,6 @@ import logging
 import os
 import sqlite3
 import time
-import os
 import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -17,10 +16,6 @@ from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -35,9 +30,6 @@ from .storage import LocalMediaStorage, MediaStorageError, S3MediaStorage, media
 bearer = HTTPBearer(auto_error=False)
 application_logger = configure_logging("autofb.api")
 error_report_limiter = ErrorReportLimiter()
-from .service import AutoFBService, ServiceError
-
-bearer = HTTPBearer(auto_error=False)
 
 
 class RegisterRequest(BaseModel):
@@ -299,10 +291,6 @@ def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -
     if credentials is not None and credentials.scheme.lower() == "bearer":
         service().logout(credentials.credentials)
     return {"status": "ok"}
-@app.post("/api/v1/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
-    if credentials is not None and credentials.scheme.lower() == "bearer":
-        service().logout(credentials.credentials)
 
 
 @app.get("/api/v1/me")
