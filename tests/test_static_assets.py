@@ -30,6 +30,14 @@ class StaticAssetTests(unittest.TestCase):
         self.assertEqual(parser.ids.count("auth"), 1)
         self.assertEqual(parser.ids.count("app"), 1)
 
+    def test_index_loads_assets_through_api_prefix(self):
+        index = INDEX.read_text()
+
+        self.assertIn('/api/v1/static/app.css', index)
+        self.assertIn('/api/v1/static/app.js', index)
+        self.assertNotIn('href="/static/app.css', index)
+        self.assertNotIn('src="/static/app.js', index)
+
     def test_frontend_javascript_has_valid_syntax(self):
         result = subprocess.run(
             ["node", "--check", APP_JS],

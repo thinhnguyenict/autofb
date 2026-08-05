@@ -35,6 +35,19 @@ class ApiContractTests(unittest.TestCase):
         keywords = {keyword.arg: keyword.value for keyword in logout_routes[0].keywords}
         self.assertNotIn("status_code", keywords)
 
+    def test_api_serves_static_assets_under_api_prefix(self):
+        tree = ast.parse(API_FILE.read_text())
+        routes = []
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Call) and _literal_route_arg(decorator) == "/api/v1/static/{asset_path:path}":
+                    routes.append(node.name)
+
+        self.assertEqual(routes, ["api_static_asset"])
+
     def test_docker_build_imports_runtime_modules(self):
         dockerfile = DOCKERFILE.read_text()
 

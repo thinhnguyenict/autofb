@@ -221,6 +221,14 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/api/v1/static/{asset_path:path}", include_in_schema=False)
+def api_static_asset(asset_path: str) -> FileResponse:
+    asset = (STATIC_DIR / asset_path).resolve()
+    if not asset.is_relative_to(STATIC_DIR.resolve()) or not asset.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Static asset not found")
+    return FileResponse(asset)
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
