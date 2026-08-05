@@ -82,7 +82,7 @@ install_system_packages() {
   log "Installing system packages and Docker Compose plugin"
   run apt-get update
 
-  local common_packages=(ca-certificates curl git make ufw)
+  local common_packages=(ca-certificates curl git make rsync ufw)
   run apt-get install -y "${common_packages[@]}"
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -99,7 +99,6 @@ install_system_packages() {
     run apt-get install -y docker.io docker-compose-plugin
   fi
 
-  run apt-get install -y ca-certificates curl git make ufw docker.io docker-compose-plugin
   run systemctl enable --now docker
 }
 open_firewall_ports() {
@@ -111,21 +110,51 @@ open_firewall_ports() {
     run ufw allow 7800/tcp
   fi
 }
+quarantine_untracked_root_index() {
+  if [ ! -f "$APP_DIR/index.html" ]; then
+    return
+  fi
+  if [ -d "$APP_DIR/.git" ] && git -C "$APP_DIR" ls-files --error-unmatch index.html >/dev/null 2>&1; then
+    return
+  fi
+
+  local backup_path
+  backup_path="$APP_DIR/index.html.aapanel-backup-$(date +%Y%m%d%H%M%S)"
+  log "Moving stale aaPanel root index.html aside so the domain can use the AutoFB reverse proxy: $backup_path"
+  run mv "$APP_DIR/index.html" "$backup_path"
+}
 checkout_or_update_repo() {
   log "Preparing application directory: $APP_DIR"
   run mkdir -p "$(dirname "$APP_DIR")"
   if [ -d "$APP_DIR/.git" ]; then
     run git -C "$APP_DIR" pull --ff-only
+    quarantine_untracked_root_index
     return
   fi
   if [ -n "$REPO_URL" ]; then
-    run git clone "$REPO_URL" "$APP_DIR"
+    if [ ! -d "$APP_DIR" ] || [ -z "$(find "$APP_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+      run git clone "$REPO_URL" "$APP_DIR"
+      quarantine_untracked_root_index
+      return
+    fi
+
+    local clone_dir
+    clone_dir="$(mktemp -d)"
+    log "$APP_DIR is not empty; preserving its existing files while adding the AutoFB checkout."
+    if ! run git clone "$REPO_URL" "$clone_dir/repository"; then
+      rm -rf -- "$clone_dir"
+      return 1
+    fi
+    run rsync -a "$clone_dir/repository/" "$APP_DIR/"
+    rm -rf -- "$clone_dir"
+    quarantine_untracked_root_index
     return
   fi
   if [ -f "docker-compose.yml" ] && [ -f "Dockerfile" ]; then
     log "No REPO_URL provided; copying current directory into $APP_DIR"
     run mkdir -p "$APP_DIR"
     run rsync -a --delete --exclude .git ./ "$APP_DIR/"
+    quarantine_untracked_root_index
     return
   fi
   cat >&2 <<MSG
@@ -221,11 +250,6 @@ YAML
       - "127.0.0.1:${AUTOFB_API_PORT}:8001"
 YAML
   cat >> docker-compose.override.yml <<'YAML'
-  cat > docker-compose.override.yml <<'YAML'
-services:
-  autofb-api:
-    ports:
-      - "127.0.0.1:8001:8001"
     environment:
       META_APP_ID: "${META_APP_ID}"
       META_APP_SECRET: "${META_APP_SECRET}"
@@ -248,6 +272,15 @@ services:
       - "127.0.0.1:8000:8000"
 YAML
 }
+validate_python_sources() {
+  if [ "$DRY_RUN" = "1" ] && [ ! -d "$APP_DIR" ]; then
+    return
+  fi
+  cd "$APP_DIR"
+  log "Validating Python source syntax before Docker startup"
+  run python3 -m compileall -q autofb tools
+}
+
 build_and_start() {
   log "Building and starting AutoFB API + worker"
   if [ "$DRY_RUN" = "1" ] && [ ! -d "$APP_DIR" ]; then
@@ -255,6 +288,7 @@ build_and_start() {
     return
   fi
   cd "$APP_DIR"
+  validate_python_sources
   backup_url="$(sed -n 's/^AUTOFB_OFFSITE_BACKUP_URL=//p' .env | tail -n 1)"
   if [ -n "$backup_url" ]; then
     run docker compose --profile backup up -d --build autofb-api autofb-worker autofb-backup
@@ -262,8 +296,6 @@ build_and_start() {
     run docker compose up -d --build autofb-api autofb-worker
     log "Off-site backup service not started; configure AUTOFB_OFFSITE_BACKUP_URL before pilot acceptance."
   fi
-  cd "$APP_DIR"
-  run docker compose up -d --build autofb-api autofb-worker
 }
 wait_for_health() {
   if [ "$DRY_RUN" = "1" ]; then
@@ -272,7 +304,6 @@ wait_for_health() {
   log "Waiting for API health check"
   for _ in $(seq 1 30); do
     if curl -fsS "http://127.0.0.1:${AUTOFB_API_PORT}/healthz" >/dev/null 2>&1; then
-    if curl -fsS http://127.0.0.1:8001/healthz >/dev/null 2>&1; then
       log "API is healthy"
       return
     fi
@@ -314,10 +345,6 @@ Local API: http://127.0.0.1:$AUTOFB_API_PORT
 
 In aaPanel, create/reuse website $DOMAIN and add Reverse Proxy:
   Target URL: http://127.0.0.1:$AUTOFB_API_PORT
-Local API: http://127.0.0.1:8001
-
-In aaPanel, create/reuse website $DOMAIN and add Reverse Proxy:
-  Target URL: http://127.0.0.1:8001
 Then enable Let's Encrypt SSL and Force HTTPS.
 
 Meta OAuth redirect URI:
@@ -341,13 +368,6 @@ If Meta OAuth, off-site backup or alert receivers are not configured yet, edit:
   $APP_DIR/.env
 then restart:
   cd $APP_DIR && docker compose up -d --build autofb-api autofb-worker
-  docker compose up -d --build
-  make check
-
-If Meta OAuth is not configured yet, edit:
-  $APP_DIR/.env
-then restart:
-  cd $APP_DIR && docker compose up -d --build
 MSG
 }
 main() {
@@ -361,9 +381,8 @@ main() {
   build_and_start
   wait_for_health
   bootstrap_admin_if_configured
-  write_runtime_files
-  build_and_start
-  wait_for_health
   print_next_steps
 }
-main "$@"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+  main "$@"
+fi
