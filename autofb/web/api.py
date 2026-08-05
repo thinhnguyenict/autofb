@@ -221,6 +221,7 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.head("/api/v1/static/{asset_path:path}", include_in_schema=False)
 @app.get("/api/v1/static/{asset_path:path}", include_in_schema=False)
 def api_static_asset(asset_path: str) -> FileResponse:
     asset = (STATIC_DIR / asset_path).resolve()

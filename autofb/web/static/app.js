@@ -34,7 +34,21 @@ async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (token()) headers.Authorization = `Bearer ${token()}`;
   if (options.body) headers["Content-Type"] = "application/json";
-  const response = await fetch(`/api/v1${path}`, { ...options, headers });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(`/api/v1${path}`, { ...options, headers, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Kết nối API quá lâu. Kiểm tra reverse proxy aaPanel tới http://127.0.0.1:8001.");
+    }
+    throw new Error(`Không gọi được API: ${error.message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+
   if (!response.ok) {
     const payload = await response.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(formatErrorDetail(payload.detail));
@@ -155,6 +169,7 @@ async function refreshWorkspace() {
 $("login").onsubmit = async (event) => {
   event.preventDefault();
   try {
+    message("Đang đăng nhập...");
     const data = await api("/auth/login", { method: "POST", body: JSON.stringify({ email: $("email").value, password: $("password").value }) });
     localStorage.setItem(tokenKey, data.access_token);
     $("auth").hidden = true;
@@ -168,6 +183,7 @@ $("login").onsubmit = async (event) => {
 $("register").onclick = async () => {
   if (!$("login").reportValidity()) return;
   try {
+    message("Đang tạo tài khoản...");
     await api("/auth/register", { method: "POST", body: JSON.stringify({ email: $("email").value, password: $("password").value, display_name: $("email").value.split("@")[0] }) });
     message("Đã tạo tài khoản. Hãy đăng nhập.");
   } catch (error) {

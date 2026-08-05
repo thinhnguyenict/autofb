@@ -46,6 +46,7 @@ class ApiContractTests(unittest.TestCase):
                 if isinstance(decorator, ast.Call) and _literal_route_arg(decorator) == "/api/v1/static/{asset_path:path}":
                     routes.append(node.name)
 
+        self.assertEqual(routes, ["api_static_asset", "api_static_asset"])
         self.assertEqual(routes, ["api_static_asset"])
 
     def test_docker_build_imports_runtime_modules(self):

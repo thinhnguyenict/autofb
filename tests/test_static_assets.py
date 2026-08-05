@@ -48,6 +48,13 @@ class StaticAssetTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_auth_buttons_show_request_progress_messages(self):
+        app_js = APP_JS.read_text()
+
+        self.assertIn('Đang đăng nhập...', app_js)
+        self.assertIn('Đang tạo tài khoản...', app_js)
+        self.assertIn('Kết nối API quá lâu', app_js)
+
 
 if __name__ == "__main__":
     unittest.main()
