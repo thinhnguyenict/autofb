@@ -119,6 +119,63 @@ class InteractiveInstallerTests(unittest.TestCase):
             self.assertTrue((app_dir / "Dockerfile").is_file())
             self.assertTrue((app_dir / ".git").is_dir())
 
+    def test_repository_installer_moves_stale_root_index_aside(self):
+        with tempfile.TemporaryDirectory() as working_dir:
+            app_dir = Path(working_dir) / "web-root"
+            app_dir.mkdir()
+            stale_index = app_dir / "index.html"
+            stale_index.write_text("stale aaPanel page\n")
+            expression = (
+                f"source {REPOSITORY_INSTALLER!s}; "
+                f"APP_DIR={str(app_dir)!r}; "
+                "quarantine_untracked_root_index"
+            )
+
+            result = subprocess.run(
+                ["bash", "-c", expression],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(stale_index.exists())
+            backups = list(app_dir.glob("index.html.aapanel-backup-*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_text(), "stale aaPanel page\n")
+
+    def test_repository_installer_keeps_tracked_root_index(self):
+        with tempfile.TemporaryDirectory() as app_dir:
+            app_path = Path(app_dir)
+            (app_path / "index.html").write_text("tracked page\n")
+            subprocess.run(["git", "init", "-q", app_path], check=True)
+            subprocess.run(["git", "-C", app_path, "add", "index.html"], check=True)
+            subprocess.run(
+                [
+                    "git", "-C", app_path,
+                    "-c", "user.name=Installer Test",
+                    "-c", "user.email=installer@example.com",
+                    "commit", "-qm", "fixture",
+                ],
+                check=True,
+            )
+            expression = (
+                f"source {REPOSITORY_INSTALLER!s}; "
+                f"APP_DIR={str(app_path)!r}; "
+                "quarantine_untracked_root_index"
+            )
+
+            result = subprocess.run(
+                ["bash", "-c", expression],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((app_path / "index.html").read_text(), "tracked page\n")
+            self.assertEqual(list(app_path.glob("index.html.aapanel-backup-*")), [])
+
     def test_compose_file_has_no_duplicate_mapping_keys(self):
         stack = []
         seen = set()

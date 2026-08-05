@@ -110,16 +110,31 @@ open_firewall_ports() {
     run ufw allow 7800/tcp
   fi
 }
+quarantine_untracked_root_index() {
+  if [ ! -f "$APP_DIR/index.html" ]; then
+    return
+  fi
+  if [ -d "$APP_DIR/.git" ] && git -C "$APP_DIR" ls-files --error-unmatch index.html >/dev/null 2>&1; then
+    return
+  fi
+
+  local backup_path
+  backup_path="$APP_DIR/index.html.aapanel-backup-$(date +%Y%m%d%H%M%S)"
+  log "Moving stale aaPanel root index.html aside so the domain can use the AutoFB reverse proxy: $backup_path"
+  run mv "$APP_DIR/index.html" "$backup_path"
+}
 checkout_or_update_repo() {
   log "Preparing application directory: $APP_DIR"
   run mkdir -p "$(dirname "$APP_DIR")"
   if [ -d "$APP_DIR/.git" ]; then
     run git -C "$APP_DIR" pull --ff-only
+    quarantine_untracked_root_index
     return
   fi
   if [ -n "$REPO_URL" ]; then
     if [ ! -d "$APP_DIR" ] || [ -z "$(find "$APP_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
       run git clone "$REPO_URL" "$APP_DIR"
+      quarantine_untracked_root_index
       return
     fi
 
@@ -132,12 +147,14 @@ checkout_or_update_repo() {
     fi
     run rsync -a "$clone_dir/repository/" "$APP_DIR/"
     rm -rf -- "$clone_dir"
+    quarantine_untracked_root_index
     return
   fi
   if [ -f "docker-compose.yml" ] && [ -f "Dockerfile" ]; then
     log "No REPO_URL provided; copying current directory into $APP_DIR"
     run mkdir -p "$APP_DIR"
     run rsync -a --delete --exclude .git ./ "$APP_DIR/"
+    quarantine_untracked_root_index
     return
   fi
   cat >&2 <<MSG
