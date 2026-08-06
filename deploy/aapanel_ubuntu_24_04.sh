@@ -345,7 +345,13 @@ Local API: http://127.0.0.1:$AUTOFB_API_PORT
 
 In aaPanel, create/reuse website $DOMAIN and add Reverse Proxy:
   Target URL: http://127.0.0.1:$AUTOFB_API_PORT
+  Proxy directory: /
+  Send domain: \$host
+  Cache: disabled
 Then enable Let's Encrypt SSL and Force HTTPS.
+
+For tool.huongdancauca.com, a complete conflict-free Nginx example is available at:
+  $APP_DIR/deploy/nginx/tool.huongdancauca.com.conf
 
 Meta OAuth redirect URI:
   https://$DOMAIN/api/v1/oauth/facebook/callback

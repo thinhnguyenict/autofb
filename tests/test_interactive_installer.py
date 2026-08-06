@@ -9,6 +9,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).parents[1] / "deploy" / "install_ubuntu_24_04.sh"
 REPOSITORY_INSTALLER = Path(__file__).parents[1] / "deploy" / "aapanel_ubuntu_24_04.sh"
 COMPOSE_FILE = Path(__file__).parents[1] / "docker-compose.yml"
+NGINX_CONFIG = Path(__file__).parents[1] / "deploy" / "nginx" / "tool.huongdancauca.com.conf"
 
 
 class InteractiveInstallerTests(unittest.TestCase):
@@ -191,6 +192,16 @@ class InteractiveInstallerTests(unittest.TestCase):
             self.assertNotIn(location, seen, f"duplicate mapping key {key!r} on line {line_number}")
             seen.add(location)
             stack.append((indent, key))
+
+    def test_nginx_example_proxies_every_application_route(self):
+        config = NGINX_CONFIG.read_text()
+
+        self.assertIn("proxy_pass http://127.0.0.1:8001;", config)
+        self.assertIn("proxy_set_header Host $host;", config)
+        self.assertIn("proxy_set_header X-Forwarded-Proto $scheme;", config)
+        self.assertEqual(config.count("proxy_pass "), 1)
+        self.assertNotIn("enable-php", config)
+        self.assertNotIn("/nginx/proxy/", config)
 
 
 if __name__ == "__main__":
