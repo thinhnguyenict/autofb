@@ -47,6 +47,7 @@ class ApiContractTests(unittest.TestCase):
                     routes.append(node.name)
 
         self.assertEqual(routes, ["api_static_asset", "api_static_asset"])
+        self.assertEqual(routes, ["api_static_asset"])
 
     def test_docker_build_imports_runtime_modules(self):
         dockerfile = DOCKERFILE.read_text()
