@@ -6,7 +6,6 @@ import logging
 import os
 import sqlite3
 import time
-import os
 import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -17,10 +16,6 @@ from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -35,9 +30,6 @@ from .storage import LocalMediaStorage, MediaStorageError, S3MediaStorage, media
 bearer = HTTPBearer(auto_error=False)
 application_logger = configure_logging("autofb.api")
 error_report_limiter = ErrorReportLimiter()
-from .service import AutoFBService, ServiceError
-
-bearer = HTTPBearer(auto_error=False)
 
 
 class RegisterRequest(BaseModel):
@@ -229,6 +221,15 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.head("/api/v1/static/{asset_path:path}", include_in_schema=False)
+@app.get("/api/v1/static/{asset_path:path}", include_in_schema=False)
+def api_static_asset(asset_path: str) -> FileResponse:
+    asset = (STATIC_DIR / asset_path).resolve()
+    if not asset.is_relative_to(STATIC_DIR.resolve()) or not asset.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Static asset not found")
+    return FileResponse(asset)
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -299,10 +300,6 @@ def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -
     if credentials is not None and credentials.scheme.lower() == "bearer":
         service().logout(credentials.credentials)
     return {"status": "ok"}
-@app.post("/api/v1/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
-    if credentials is not None and credentials.scheme.lower() == "bearer":
-        service().logout(credentials.credentials)
 
 
 @app.get("/api/v1/me")

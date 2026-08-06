@@ -8,8 +8,6 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
-import time
-from datetime import UTC, datetime
 from typing import Any, Callable
 
 
@@ -22,7 +20,6 @@ class ProviderRateLimitError(RuntimeError):
     def __init__(self, retry_after_seconds: int) -> None:
         self.retry_after_seconds = max(1, min(retry_after_seconds, 3600))
         super().__init__(f"Meta rate limit reached; retry after {self.retry_after_seconds} seconds")
-from .service import now
 
 
 class PublishWorker:
@@ -104,30 +101,6 @@ class PublishWorker:
                 (self.worker_id, status, error[:1000] if error else None, now(), self.started_at),
             )
 
-
-    @staticmethod
-    def _configured_decryptor() -> Callable[[str], str]:
-        from .oauth import MetaOAuth
-
-        return MetaOAuth.from_environment().decrypt
-
-    def run_once(self) -> int:
-        """Claim and execute all due queued jobs; returns the number claimed."""
-        claimed = self._claim_due_jobs()
-        for job in claimed:
-            try:
-                remote_id = self._publish_job(job)
-            except Exception as exc:  # Job errors are persisted and never crash the worker loop.
-                retrying = self._handle_failure(job, str(exc))
-                if retrying:
-                    logging.info("Publish job %s failed and was requeued: %s", job["id"], exc)
-                else:
-                    logging.exception("Publish job %s failed permanently", job["id"])
-            else:
-                self._finish(job["id"], job["post_id"], "succeeded", None)
-                logging.info("Publish job %s completed with remote post %s", job["id"], remote_id)
-        return len(claimed)
-
     def run_forever(self, poll_seconds: int = 60) -> None:
         """Continuously poll for due jobs until the process is stopped."""
         if poll_seconds < 1:
@@ -177,8 +150,6 @@ class PublishWorker:
                    ORDER BY publish_jobs.run_at, publish_jobs.created_at
                    LIMIT ?""",
                 (now(), self.batch_size),
-                   WHERE publish_jobs.status = 'queued' AND publish_jobs.run_at <= ?""",
-                (now(),),
             ).fetchall()
             claimed = []
             for row in rows:
@@ -214,12 +185,6 @@ class PublishWorker:
             else:
                 delay = timedelta(minutes=2 ** attempts)
             retry_at = (datetime.now(UTC) + delay).isoformat()
-    def _handle_failure(self, job: dict[str, str], error: str) -> bool:
-        attempts = int(job["attempts"])
-        if attempts < self.MAX_ATTEMPTS:
-            from datetime import timedelta
-
-            retry_at = (datetime.now(UTC) + timedelta(minutes=2 ** attempts)).isoformat()
             with self.database.connect() as conn:
                 conn.execute("UPDATE publish_jobs SET status = 'queued', run_at = ?, last_error = ?, updated_at = ? WHERE id = ?", (retry_at, error, now(), job["id"]))
                 conn.execute("UPDATE posts SET status = 'queued', updated_at = ? WHERE id = ?", (now(), job["post_id"]))
@@ -266,7 +231,6 @@ class PublishWorker:
             timeout=60,
         )
         PublishWorker._raise_for_status(response)
-        response.raise_for_status()
         data = response.json()
         post_id = data.get("id")
         if not post_id:
@@ -283,7 +247,6 @@ class PublishWorker:
         uploaded_ids = []
         for item in media:
             with open_stored_media(item["storage_path"]) as handle:
-            with open(item["storage_path"], "rb") as handle:
                 upload = requests.post(
                     f"https://graph.facebook.com/v25.0/{page_id}/photos",
                     data={"access_token": access_token, "published": "false"},
@@ -291,7 +254,6 @@ class PublishWorker:
                     timeout=120,
                 )
             PublishWorker._raise_for_status(upload)
-            upload.raise_for_status()
             upload_id = upload.json().get("id")
             if not upload_id:
                 raise RuntimeError("Meta did not return an uploaded media id")
@@ -302,7 +264,6 @@ class PublishWorker:
             payload[f"attached_media[{index}]"] = json.dumps({"media_fbid": media_id})
         response = requests.post(f"https://graph.facebook.com/v25.0/{page_id}/feed", data=payload, timeout=60)
         PublishWorker._raise_for_status(response)
-        response.raise_for_status()
         post_id = response.json().get("id")
         if not post_id:
             raise RuntimeError("Meta did not return a post id")
